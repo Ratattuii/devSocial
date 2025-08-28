@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator,
-  Alert, Button, Image, TouchableOpacity, FlatList
+  View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, FlatList
 } from 'react-native';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme/theme';
+import Button from '../components/Button';
+import PostCard from '../components/PostCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfileScreen = ({ navigation }) => {
   const { signOut } = useContext(AuthContext);
@@ -19,11 +22,10 @@ const ProfileScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('myPosts');
 
   useEffect(() => {
-    // Adicionar um listener para focar na tela e recarregar os dados
     const unsubscribe = navigation.addListener('focus', () => {
       fetchProfileData();
     });
-    return unsubscribe; // Limpar o listener
+    return unsubscribe;
   }, [navigation]);
 
   const fetchProfileData = async () => {
@@ -49,8 +51,7 @@ const ProfileScreen = ({ navigation }) => {
       const favoritePostsResponse = await api.get('/users/me/favorites', {
         headers: { Authorization: `Bearer ${userToken}` }
       });
-      // CORREÇÃO AQUI: Use favoritePostsResponse.data
-      setFavoritePosts(favoritePostsResponse.data); // LINHA CORRIGIDA
+      setFavoritePosts(favoritePostsResponse.data);
 
     } catch (error) {
       console.error('Erro ao buscar dados do perfil:', error.response?.data || error.message);
@@ -64,75 +65,105 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const renderPostItem = ({ item }) => (
-    <TouchableOpacity onPress={() => navigation.navigate('PostDetail', { postId: item.id })}>
-      <View style={styles.postCard}>
-        <Text style={styles.postTitle}>{item.title}</Text>
-        <Text style={styles.postContentPreview}>{item.content.substring(0, 100)}...</Text>
-        <View style={styles.postStatsRow}>
-            <Text style={styles.postStatItem}>{item.likes_count} Curtidas</Text>
-            <Text style={styles.postStatItem}>{item.comments_count} Comentários</Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <PostCard
+      post={item}
+      onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+      showActions={false}
+      style={styles.profilePostCard}
+    />
   );
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Carregando perfil...</Text>
-      </View>
-    );
+    return <LoadingSpinner message="Carregando perfil..." />;
   }
 
   if (!user) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Perfil não encontrado.</Text>
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="person-circle-outline" size={64} color={theme.colors.primary} />
+          </View>
+          <Text style={styles.errorText}>Perfil não encontrado.</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color="#333" />
+          <View style={styles.backButtonGradient}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+          </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Meu Perfil</Text>
         <TouchableOpacity onPress={() => navigation.navigate('EditProfile', { user })} style={styles.editButton}>
-          <Ionicons name="settings-outline" size={24} color="#007bff" />
+          <View style={styles.editButtonGradient}>
+            <Ionicons name="settings-outline" size={20} color="white" />
+          </View>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
         {/* Informações do Usuário */}
         <View style={styles.profileInfoCard}>
-          {/* Garante que a URL da imagem esteja completa */}
-          {user.profile_picture_url ? (
-            <Image source={{ uri: `${api.defaults.baseURL.replace('/api', '')}${user.profile_picture_url}` }} style={styles.profilePicture} />
-          ) : (
-            <Ionicons name="person-circle" size={100} color="#ccc" style={styles.profilePicturePlaceholder} />
-          )}
-          <Text style={styles.username}>{user.username}</Text>
-          <Text style={styles.email}>{user.email}</Text>
-          <Text style={styles.memberSince}>Membro desde: {new Date(user.created_at).toLocaleDateString('pt-BR')}</Text>
+          <View style={styles.profileCardGradient}>
+            {user.profile_picture_url ? (
+              <Image 
+                source={{ uri: `${api.defaults.baseURL.replace('/api', '')}${user.profile_picture_url}` }} 
+                style={styles.profilePicture} 
+              />
+            ) : (
+              <View style={styles.profilePicturePlaceholder}>
+                <Ionicons name="person" size={50} color="white" />
+              </View>
+            )}
+            <Text style={styles.username}>{user.username}</Text>
+            <Text style={styles.email}>{user.email}</Text>
+            <View style={styles.memberSinceContainer}>
+              <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
+              <Text style={styles.memberSince}>
+                Membro desde {new Date(user.created_at).toLocaleDateString('pt-BR')}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Abas de Navegação */}
         <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'myPosts' && styles.activeTab]}
-            onPress={() => setActiveTab('myPosts')}
-          >
-            <Text style={[styles.tabText, activeTab === 'myPosts' && styles.activeTabText]}>Meus Posts ({myPosts.length})</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'favorites' && styles.activeTab]}
-            onPress={() => setActiveTab('favorites')}
-          >
-            <Text style={[styles.tabText, activeTab === 'favorites' && styles.activeTabText]}>Favoritos ({favoritePosts.length})</Text>
-          </TouchableOpacity>
+          <View style={styles.tabsGradient}>
+            <TouchableOpacity
+              style={[styles.tabButton, activeTab === 'myPosts' && styles.activeTab]}
+              onPress={() => setActiveTab('myPosts')}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name="document-text-outline" 
+                size={20} 
+                color={activeTab === 'myPosts' ? theme.colors.primary : theme.colors.text.secondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'myPosts' && styles.activeTabText]}>
+                Meus Posts ({myPosts.length})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tabButton, activeTab === 'favorites' && styles.activeTab]}
+              onPress={() => setActiveTab('favorites')}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name="star-outline" 
+                size={20} 
+                color={activeTab === 'favorites' ? theme.colors.primary : theme.colors.text.secondary} 
+              />
+              <Text style={[styles.tabText, activeTab === 'favorites' && styles.activeTabText]}>
+                Favoritos ({favoritePosts.length})
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Conteúdo da Aba Ativa */}
@@ -146,7 +177,22 @@ const ProfileScreen = ({ navigation }) => {
               contentContainerStyle={styles.postListContent}
             />
           ) : (
-            <Text style={styles.noContentText}>Você ainda não fez nenhum post.</Text>
+            <View style={styles.emptyState}>
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="document-text-outline" size={48} color="white" />
+                </View>
+                <Text style={styles.emptyStateText}>Você ainda não criou nenhum post</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Compartilhe suas ideias com a comunidade!
+                </Text>
+                <Button 
+                  title="Criar Primeiro Post" 
+                  onPress={() => navigation.navigate('Home')}
+                  style={styles.emptyStateButton}
+                />
+              </View>
+            </View>
           )
         ) : (
           favoritePosts.length > 0 ? (
@@ -158,7 +204,22 @@ const ProfileScreen = ({ navigation }) => {
               contentContainerStyle={styles.postListContent}
             />
           ) : (
-            <Text style={styles.noContentText}>Você ainda não favoritou nenhum post.</Text>
+            <View style={styles.emptyState}>
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyStateIcon}>
+                  <Ionicons name="star-outline" size={48} color="white" />
+                </View>
+                <Text style={styles.emptyStateText}>Você ainda não favoritou nenhum post</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Explore posts interessantes e salve-os aqui!
+                </Text>
+                <Button 
+                  title="Explorar Posts" 
+                  onPress={() => navigation.navigate('Home')}
+                  style={styles.emptyStateButton}
+                />
+              </View>
+            </View>
           )
         )}
       </ScrollView>
@@ -169,152 +230,232 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: theme.colors.background,
   },
-  loadingContainer: {
+  
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
   },
+  
+  errorIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.large,
+  },
+  
+  errorText: {
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
+  },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingTop: 40,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.medium,
   },
+  
   backButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  editButton: {
-    padding: 5,
-  },
-  scrollViewContent: {
-    paddingBottom: 20,
-  },
-  profileInfoCard: {
-    backgroundColor: '#fff',
-    padding: 20,
-    margin: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  profilePicture: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 15,
-    borderWidth: 2,
-    borderColor: '#007bff',
-  },
-  profilePicturePlaceholder: {
-    marginBottom: 15,
-  },
-  username: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  email: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 5,
-  },
-  memberSince: {
-    fontSize: 14,
-    color: '#888',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginHorizontal: 15,
-    marginTop: 10,
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    borderRadius: theme.borderRadius.full,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
   },
+  
+  backButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceVariant,
+    ...theme.shadows.medium,
+  },
+  
+  headerTitle: {
+    ...theme.typography.h2,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  
+  editButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  
+  editButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.medium,
+  },
+  
+  scrollViewContent: {
+    paddingBottom: theme.spacing.lg,
+  },
+  
+  profileInfoCard: {
+    margin: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.large,
+  },
+  
+  profileCardGradient: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+  },
+  
+  profilePicture: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 4,
+    borderColor: theme.colors.primary,
+    ...theme.shadows.medium,
+  },
+  
+  profilePicturePlaceholder: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.medium,
+  },
+  
+  username: {
+    ...theme.typography.h1,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '600',
+  },
+  
+  email: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm,
+  },
+  
+  memberSinceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  
+  memberSince: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
+  },
+  
+  tabsContainer: {
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
+  },
+  
+  tabsGradient: {
+    flexDirection: 'row',
+    padding: theme.spacing.xs,
+    backgroundColor: theme.colors.surface,
+  },
+  
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTab: {
-    borderBottomColor: '#007bff',
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#666',
-  },
-  activeTabText: {
-    color: '#007bff',
-  },
-  postListContent: {
-    paddingHorizontal: 15,
-    paddingTop: 10,
-    paddingBottom: 20,
-  },
-  postCard: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  postTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#333',
-  },
-  postContentPreview: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 10,
-  },
-  postStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
+    gap: theme.spacing.xs,
   },
-  postStatItem: {
-    fontSize: 13,
-    color: '#888',
+  
+  activeTab: {
+    backgroundColor: theme.colors.primary + '20',
   },
-  noContentText: {
+  
+  tabText: {
+    ...theme.typography.button,
+    color: theme.colors.text.secondary,
+  },
+  
+  activeTabText: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  
+  postListContent: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+  },
+  
+  profilePostCard: {
+    marginBottom: theme.spacing.md,
+  },
+  
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  
+  emptyStateCard: {
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.xl,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.large,
+  },
+  
+  emptyStateIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.secondary,
+  },
+  
+  emptyStateText: {
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
     textAlign: 'center',
-    marginTop: 30,
-    fontSize: 16,
-    color: '#777',
-    marginHorizontal: 15,
+    fontWeight: '600',
+  },
+  
+  emptyStateSubtext: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xl,
+  },
+  
+  emptyStateButton: {
+    minWidth: 200,
   },
 });
 

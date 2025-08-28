@@ -1,11 +1,10 @@
-const mysql = require('mysql2/promise'); // Importa o mysql2 com suporte a Promises
+const mysql = require('mysql2/promise');
 
-// Configurações do banco de dados
 const dbConfig = {
-  host: 'localhost', // Ou o IP/endereço do seu servidor MySQL
-  user: 'root',      // Seu usuário do MySQL
-  password: 'root', // Sua senha do MySQL
-  database: 'forum_db' // Nome do banco de dados que vamos criar
+  host: 'localhost',
+  user: 'devsocial_user',     
+  password: 'devsocial123',  
+  database: 'devsocial'
 };
 
 // Cria um pool de conexões
@@ -15,11 +14,11 @@ const pool = mysql.createPool(dbConfig);
 pool.getConnection()
   .then(connection => {
     console.log('Conectado ao MySQL com sucesso!');
-    connection.release(); // Libera a conexão de volta para o pool
+    connection.release(); 
   })
   .catch(err => {
     console.error('Erro ao conectar ao MySQL:', err.message);
-    process.exit(1); // Encerra o processo se a conexão falhar
+    process.exit(1);
   });
 
-module.exports = pool; // Exporta o pool para ser usado em outras partes do app
+module.exports = pool; 

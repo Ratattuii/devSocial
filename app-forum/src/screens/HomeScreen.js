@@ -2,14 +2,19 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
-  View, Text, Button, StyleSheet, Alert,
-  FlatList, TextInput, TouchableOpacity, ActivityIndicator, Image
+  View, Text, StyleSheet, Alert,
+  FlatList, TouchableOpacity, ActivityIndicator, Image, ScrollView
 } from 'react-native';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker'; // <-- Novo
+import * as ImagePicker from 'expo-image-picker';
+import { theme } from '../theme/theme';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import PostCard from '../components/PostCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const HomeScreen = ({ navigation }) => {
   const { signOut } = useContext(AuthContext);
@@ -20,22 +25,29 @@ const HomeScreen = ({ navigation }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [userLikes, setUserLikes] = useState({});
+  const [userFavorites, setUserFavorites] = useState({});
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [newPostImageUri, setNewPostImageUri] = useState(null); // <-- Novo: URI da imagem do novo post
+  const [currentUser, setCurrentUser] = useState(null);
+  const [newPostImageUri, setNewPostImageUri] = useState(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);
 
   useEffect(() => {
-    const loadUserId = async () => {
+    const loadUserData = async () => {
       try {
-        const userDataString = await AsyncStorage.getItem('userData');
-        if (userDataString) {
-          const userData = JSON.parse(userDataString);
-          setCurrentUserId(userData.id);
+        const userToken = await AsyncStorage.getItem('userToken');
+        if (userToken) {
+          const userResponse = await api.get('/users/me', {
+            headers: { Authorization: `Bearer ${userToken}` }
+          });
+          setCurrentUser(userResponse.data);
+          setCurrentUserId(userResponse.data.id);
         }
       } catch (error) {
-        console.error('Erro ao carregar dados do usuário do AsyncStorage:', error);
+        console.error('Erro ao carregar dados do usuário:', error);
       }
     };
-    loadUserId();
+    
+    loadUserData();
     fetchPosts();
 
     // Pedir permissão para acessar a galeria de imagens
@@ -45,30 +57,43 @@ const HomeScreen = ({ navigation }) => {
         Alert.alert('Permissão Negada', 'Desculpe, precisamos de permissões de galeria para isso funcionar!');
       }
     })();
-  }, [searchTerm, currentUserId]);
+  }, [searchTerm]);
 
   const fetchPosts = async () => {
     setLoadingPosts(true);
     try {
       const response = await api.get(`/posts?q=${searchTerm}`);
 
-      // Atualiza o estado de likes do usuário com base nos posts buscados
-      // Para o feedback visual persistente, esta parte é crucial
+      // Buscar likes e favoritos do usuário
       let initialUserLikes = {};
+      let initialUserFavorites = {};
+      
       if (currentUserId) {
         try {
-          const likesResponse = await api.get(`/users/${currentUserId}/likes`, {
-            headers: { Authorization: `Bearer ${await AsyncStorage.getItem('userToken')}` }
-          });
+          const userToken = await AsyncStorage.getItem('userToken');
+          const [likesResponse, favoritesResponse] = await Promise.all([
+            api.get(`/users/${currentUserId}/likes`, {
+              headers: { Authorization: `Bearer ${userToken}` }
+            }),
+            api.get(`/users/${currentUserId}/favorites`, {
+              headers: { Authorization: `Bearer ${userToken}` }
+            })
+          ]);
+          
           likesResponse.data.forEach(like => {
             initialUserLikes[like.post_id] = true;
           });
-        } catch (likesError) {
-          console.error('Erro ao buscar likes do usuário para inicialização:', likesError.response?.data || likesError.message);
+          
+          favoritesResponse.data.forEach(favorite => {
+            initialUserFavorites[favorite.post_id] = true;
+          });
+        } catch (error) {
+          console.error('Erro ao buscar interações do usuário:', error.response?.data || error.message);
         }
       }
+      
       setUserLikes(initialUserLikes);
-
+      setUserFavorites(initialUserFavorites);
       setPosts(response.data);
     } catch (error) {
       console.error('Erro ao buscar posts:', error.response?.data || error.message);
@@ -199,12 +224,27 @@ const HomeScreen = ({ navigation }) => {
         signOut();
         return;
       }
+      
       const response = await api.post(
         `/posts/${postId}/favorite`,
         {},
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
-      Alert.alert('Sucesso', response.data.message);
+
+      const favorited = response.data.favorited;
+      setUserFavorites(prevFavorites => ({
+        ...prevFavorites,
+        [postId]: favorited,
+      }));
+
+      setPosts(prevPosts =>
+        prevPosts.map(post =>
+          post.id === postId
+            ? { ...post, favorites_count: favorited ? (post.favorites_count || 0) + 1 : Math.max(0, (post.favorites_count || 0) - 1) }
+            : post
+        )
+      );
+
     } catch (error) {
       console.error('Erro ao favoritar/desfavoritar:', error.response?.data || error.message);
       Alert.alert('Erro', error.response?.data?.message || 'Não foi possível processar o favorito.');
@@ -215,116 +255,188 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleLogout = () => {
+    console.log('HomeScreen: Botão Sair pressionado!');
     Alert.alert('Sair', 'Deseja realmente sair?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Sair', onPress: async () => {
-        await signOut();
+        console.log('HomeScreen: Confirmando logout...');
+        try {
+          await signOut();
+          console.log('HomeScreen: Logout realizado com sucesso!');
+        } catch (error) {
+          console.error('HomeScreen: Erro no logout:', error);
+        }
       }}
     ]);
   };
 
+  const handleEditPost = (post) => {
+    // Implementar edição de post
+    Alert.alert('Funcionalidade', 'Edição de posts será implementada em breve!');
+  };
+
+  const handleDeletePost = async (postId) => {
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+      await api.delete(`/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
+      
+      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
+      Alert.alert('Sucesso', 'Post excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir post:', error.response?.data || error.message);
+      Alert.alert('Erro', 'Não foi possível excluir o post.');
+    }
+  };
+
   const renderPostItem = ({ item }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        {item.profile_picture_url ? (
-          <Image source={{ uri: `http://localhost:3001${item.profile_picture_url}` }} style={styles.profilePicture} />
-        ) : (
-          <Ionicons name="person-circle" size={40} color="#ccc" style={styles.profilePicturePlaceholder} />
-        )}
-        <Text style={styles.postUsername}>{item.username}</Text>
-      </View>
-      <Text style={styles.postTitle}>{item.title}</Text>
-      <Text style={styles.postContent}>{item.content}</Text>
-      {item.image_url && <Image source={{ uri: `http://localhost:3001${item.image_url}` }} style={styles.postImage} />}
-      <View style={styles.postFooter}>
-        <TouchableOpacity style={styles.interactionButton} onPress={() => handleToggleLike(item.id)}>
-          <Ionicons
-            name={userLikes[item.id] ? 'heart' : 'heart-outline'}
-            size={24}
-            color={userLikes[item.id] ? 'red' : '#666'}
-          />
-          <Text style={styles.interactionText}>{item.likes_count}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.interactionButton} onPress={() => navigation.navigate('PostDetail', { postId: item.id })}>
-          <Ionicons name="chatbubble-outline" size={24} color="#666" />
-          <Text style={styles.interactionText}>{item.comments_count}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.interactionButton} onPress={() => handleToggleFavorite(item.id)}>
-          <Ionicons name="bookmark-outline" size={24} color="#666" />
-        </TouchableOpacity>
-      </View>
-    </View>
+    <PostCard
+      post={item}
+      onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+      onLike={handleToggleLike}
+      onFavorite={handleToggleFavorite}
+      onComment={() => navigation.navigate('PostDetail', { postId: item.id })}
+      onEdit={item.user_id === currentUserId ? handleEditPost : null}
+      onDelete={item.user_id === currentUserId ? handleDeletePost : null}
+      isLiked={userLikes[item.id] || false}
+      isFavorited={userFavorites[item.id] || false}
+    />
   );
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.mainTitle}>Fórum do App</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.profileButton}>
-            <Ionicons name="person-circle-outline" size={30} color="#007bff" />
+        <View style={styles.headerLeft}>
+          <Text style={styles.title}>Fórum Social</Text>
+          {currentUser && (
+            <Text style={styles.subtitle}>Olá, {currentUser.username}!</Text>
+          )}
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('Profile')} 
+            style={styles.profileButton}
+          >
+            <Ionicons name="person-circle" size={32} color={theme.colors.primary} />
           </TouchableOpacity>
-          <Button title="Sair" onPress={handleLogout} />
+          <Button 
+            title="Sair" 
+            variant="outline" 
+            size="small" 
+            onPress={handleLogout}
+            style={styles.logoutButton}
+          />
         </View>
       </View>
 
-      {/* Barra de Pesquisa */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Pesquisar posts por título ou conteúdo..."
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          onSubmitEditing={fetchPosts}
-        />
-        <TouchableOpacity onPress={fetchPosts} style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
+      <ScrollView style={styles.content}>
+        {/* Barra de Pesquisa */}
+        <View style={styles.searchContainer}>
+          <Input
+            placeholder="Pesquisar posts..."
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            style={styles.searchInput}
+          />
+          <Button 
+            title="Buscar" 
+            size="small" 
+            onPress={fetchPosts}
+            style={styles.searchButton}
+          />
+        </View>
 
-      {/* Seção para criar novo post */}
-      <View style={styles.createPostContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="Título do seu post"
-          value={newPostTitle}
-          onChangeText={setNewPostTitle}
-        />
-        <TextInput
-          style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-          placeholder="O que você quer compartilhar?"
-          value={newPostContent}
-          onChangeText={setNewPostContent}
-          multiline
-        />
-        <TouchableOpacity onPress={pickPostImage} style={styles.imagePickerButton}>
-          <Ionicons name="image-outline" size={24} color="#007bff" />
-          <Text style={styles.imagePickerButtonText}>Adicionar Imagem</Text>
-        </TouchableOpacity>
-        {newPostImageUri && (
-          <Image source={{ uri: newPostImageUri }} style={styles.previewImage} />
-        )}
+        {/* Botão para criar novo post */}
         <Button
-          title={isSubmitting ? "Publicando..." : "Criar Post"}
-          onPress={handleCreatePost}
-          disabled={isSubmitting}
+          title={showCreatePost ? "Cancelar" : "Criar Novo Post"}
+          variant={showCreatePost ? "outline" : "primary"}
+          onPress={() => setShowCreatePost(!showCreatePost)}
+          style={styles.createPostToggle}
         />
-      </View>
 
-      {/* Lista de Posts */}
-      {loadingPosts ? (
-        <ActivityIndicator size="large" color="#0000ff" style={{ marginTop: 20 }} />
-      ) : (
-        <FlatList
-          data={posts}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderPostItem}
-          contentContainerStyle={styles.postList}
-          ListEmptyComponent={<Text style={styles.noPostsText}>Nenhum post encontrado. Tente ajustar sua pesquisa ou seja o primeiro a postar!</Text>}
-        />
-      )}
+        {/* Formulário de criação de post */}
+        {showCreatePost && (
+          <View style={styles.createPostForm}>
+            <Input
+              label="Título"
+              placeholder="Título do seu post"
+              value={newPostTitle}
+              onChangeText={setNewPostTitle}
+            />
+            
+            <Input
+              label="Conteúdo"
+              placeholder="O que você quer compartilhar?"
+              value={newPostContent}
+              onChangeText={setNewPostContent}
+              multiline
+              numberOfLines={4}
+            />
+            
+            <View style={styles.imageSection}>
+              <Button
+                title="Adicionar Imagem"
+                variant="outline"
+                size="small"
+                onPress={pickPostImage}
+                style={styles.imageButton}
+              />
+              {newPostImageUri && (
+                <View style={styles.imagePreview}>
+                  <Image source={{ uri: newPostImageUri }} style={styles.previewImage} />
+                  <TouchableOpacity 
+                    onPress={() => setNewPostImageUri(null)}
+                    style={styles.removeImageButton}
+                  >
+                    <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            
+            <Button
+              title="Publicar Post"
+              loading={isSubmitting}
+              disabled={!newPostTitle.trim() || !newPostContent.trim()}
+              onPress={handleCreatePost}
+            />
+          </View>
+        )}
+
+        {/* Lista de Posts */}
+        {loadingPosts ? (
+          <LoadingSpinner message="Carregando posts..." />
+        ) : (
+          <View style={styles.postsContainer}>
+            {posts.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="document-text-outline" size={64} color={theme.colors.text.secondary} />
+                <Text style={styles.emptyText}>Nenhum post encontrado</Text>
+                <Text style={styles.emptySubtext}>
+                  Tente ajustar sua pesquisa ou seja o primeiro a postar!
+                </Text>
+              </View>
+            ) : (
+              posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+                  onLike={handleToggleLike}
+                  onFavorite={handleToggleFavorite}
+                  onComment={() => navigation.navigate('PostDetail', { postId: post.id })}
+                  onEdit={post.user_id === currentUserId ? handleEditPost : null}
+                  onDelete={post.user_id === currentUserId ? handleDeletePost : null}
+                  isLiked={userLikes[post.id] || false}
+                  isFavorited={userFavorites[post.id] || false}
+                />
+              ))
+            )}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -332,172 +444,135 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
-    paddingTop: 40,
+    backgroundColor: theme.colors.background,
   },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 15,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
-    backgroundColor: '#fff',
+    borderBottomColor: theme.colors.border,
+    ...theme.shadows.small,
   },
-  mainTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333',
+  
+  headerLeft: {
+    flex: 1,
   },
-  headerButtons: {
+  
+  title: {
+    ...theme.typography.h2,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  
+  subtitle: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
+  },
+  
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  
   profileButton: {
-    marginRight: 15,
+    marginRight: theme.spacing.md,
   },
+  
+  logoutButton: {
+    marginLeft: theme.spacing.sm,
+  },
+  
+  content: {
+    flex: 1,
+    padding: theme.spacing.md,
+  },
+  
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    margin: 15,
-    paddingHorizontal: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    marginBottom: theme.spacing.lg,
   },
+  
   searchInput: {
     flex: 1,
-    padding: 10,
-    fontSize: 16,
+    marginRight: theme.spacing.sm,
   },
+  
   searchButton: {
-    backgroundColor: '#007bff',
-    padding: 8,
-    borderRadius: 5,
+    minWidth: 80,
   },
-  createPostContainer: {
-    backgroundColor: '#fff',
-    padding: 20,
-    marginHorizontal: 15,
-    marginBottom: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+  
+  createPostToggle: {
+    marginBottom: theme.spacing.lg,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#f9f9f9',
+  
+  createPostForm: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.shadows.medium,
   },
-  imagePickerButton: { // Novo estilo
-    flexDirection: 'row',
+  
+  imageSection: {
+    marginBottom: theme.spacing.lg,
+  },
+  
+  imageButton: {
+    marginBottom: theme.spacing.sm,
+  },
+  
+  imagePreview: {
+    position: 'relative',
     alignItems: 'center',
-    backgroundColor: '#e9f5ff',
-    padding: 10,
-    borderRadius: 5,
-    justifyContent: 'center',
-    marginBottom: 10,
   },
-  imagePickerButtonText: { // Novo estilo
-    marginLeft: 10,
-    color: '#007bff',
-    fontWeight: 'bold',
-  },
-  previewImage: { // Novo estilo
-    width: '100%',
-    height: 150,
-    borderRadius: 8,
-    resizeMode: 'cover',
-    marginBottom: 10,
-  },
-  postList: {
-    paddingHorizontal: 15,
-    paddingBottom: 20,
-  },
-  postCard: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  profilePicture: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  profilePicturePlaceholder: {
-    marginRight: 10,
-  },
-  postUsername: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#555',
-  },
-  postTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
-  },
-  postContent: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#666',
-    marginBottom: 10,
-  },
-  postImage: {
+  
+  previewImage: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
-    marginTop: 10,
-    resizeMode: 'cover',
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.sm,
   },
-  postFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+  
+  removeImageButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.round,
   },
-  interactionButton: {
-    flexDirection: 'row',
+  
+
+  
+  postsContainer: {
+    flex: 1,
+  },
+  
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingVertical: theme.spacing.xxl,
   },
-  interactionText: {
-    marginLeft: 5,
-    fontSize: 14,
-    color: '#666',
+  
+  emptyText: {
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
   },
-  noPostsText: {
+  
+  emptySubtext: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginTop: 50,
-    fontSize: 16,
-    color: '#777',
-  }
+    paddingHorizontal: theme.spacing.lg,
+  },
 });
 
 export default HomeScreen;

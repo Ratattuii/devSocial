@@ -26,13 +26,19 @@ export const AuthProvider = ({ children }) => {
 
   // Função para remover o token ao fazer logout
   const signOut = async () => {
+    console.log('AuthContext: Iniciando signOut...');
     try {
-      console.log('AuthContext: Iniciando signOut(). Tentando remover userToken.'); // <-- Adicione este log
+      console.log('AuthContext: Removendo token do AsyncStorage...');
       await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData'); // Limpar dados do usuário também
+      console.log('AuthContext: Token removido com sucesso');
       setUserToken(null);
-      console.log('AuthContext: userToken definido para null e AsyncStorage limpo.'); // <-- Adicione este log
+      console.log('AuthContext: userToken definido como null');
     } catch (e) {
-      console.error('AuthContext: Erro ao remover token do AsyncStorage:', e); // <-- MUITO IMPORTANTE
+      console.error('Erro ao remover token do AsyncStorage:', e);
+      // Mesmo com erro, definir o token como null para forçar logout
+      setUserToken(null);
+      console.log('AuthContext: userToken definido como null (mesmo com erro)');
     }
   };
   // Carregar o token ao iniciar o aplicativo

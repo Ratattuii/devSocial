@@ -2,15 +2,18 @@
 
 import React, { useState, useContext, useEffect } from 'react';
 import {
-  View, Text, TextInput, Button, StyleSheet, Alert,
-  ScrollView, ActivityIndicator, Image, TouchableOpacity,
-  Platform // <-- Adicionar Platform aqui
+  View, Text, StyleSheet, Alert, ScrollView, Image, TouchableOpacity,
+  Platform
 } from 'react-native';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { theme } from '../theme/theme';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const EditProfileScreen = ({ route, navigation }) => {
   const { user: initialUser } = route.params;
@@ -27,7 +30,7 @@ const EditProfileScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     (async () => {
-      if (Platform.OS !== 'web') { // Permissões são necessárias apenas para apps nativos
+      if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
           Alert.alert('Permissão Negada', 'Desculpe, precisamos de permissões de galeria para isso funcionar!');
@@ -67,21 +70,18 @@ const EditProfileScreen = ({ route, navigation }) => {
 
       let finalProfilePictureUrl = profilePictureUrl;
       if (selectedImageUri) {
-        // Se uma nova imagem foi selecionada, faça o upload primeiro
         const formData = new FormData();
-        const filename = selectedImageUri.split('/').pop(); // Extrai o nome do arquivo da URI
-        const match = /\.(\w+)$/.exec(filename); // Pega a extensão
-        const type = match ? `image/${match[1]}` : 'image'; // Tenta inferir o tipo MIME
+        const filename = selectedImageUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image';
 
-        // Correção aqui:
-        // Use o Platform.OS para adaptar o URI e o nome do arquivo para web e nativo
         const imageFile = {
             uri: Platform.OS === 'android' ? selectedImageUri : selectedImageUri.replace('file://', ''),
-            name: Platform.OS === 'android' ? filename : `${initialUser.id}_${Date.now()}.${match ? match[1] : 'jpg'}`, // Garante nome de arquivo para web/iOS
+            name: Platform.OS === 'android' ? filename : `${initialUser.id}_${Date.now()}.${match ? match[1] : 'jpg'}`,
             type: type,
         };
 
-        formData.append('profilePicture', imageFile); // 'profilePicture' deve corresponder ao nome do campo no Multer
+        formData.append('profilePicture', imageFile);
 
         try {
           const uploadResponse = await api.post('/upload/profile-picture', formData, {
@@ -100,38 +100,25 @@ const EditProfileScreen = ({ route, navigation }) => {
       }
 
       const updateData = {
-        username: username.trim() === initialUser.username ? undefined : username.trim(),
-        email: email.trim() === initialUser.email ? undefined : email.trim(),
-        profile_picture_url: finalProfilePictureUrl === initialUser.profile_picture_url ? undefined : finalProfilePictureUrl,
+        username,
+        email,
+        profile_picture_url: finalProfilePictureUrl,
       };
 
-      if (newPassword) {
-        updateData.old_password = oldPassword;
-        updateData.new_password = newPassword;
+      if (oldPassword && newPassword) {
+        updateData.oldPassword = oldPassword;
+        updateData.newPassword = newPassword;
       }
 
-      const filteredUpdateData = Object.fromEntries(
-        Object.entries(updateData).filter(([, value]) => value !== undefined)
-      );
+      await api.put('/users/me', updateData, {
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
 
-      if (Object.keys(filteredUpdateData).length === 0 && !selectedImageUri) { // Adicionado !selectedImageUri
-        Alert.alert('Aviso', 'Nenhuma alteração detectada para salvar.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const response = await api.put(
-        '/users/me',
-        filteredUpdateData,
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-
-      Alert.alert('Sucesso', response.data.message);
+      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
       navigation.goBack();
-
     } catch (error) {
       console.error('Erro ao atualizar perfil:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Ocorreu um erro ao atualizar o perfil.');
+      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível atualizar o perfil.');
       if (error.response?.status === 401 || error.response?.status === 403) {
         signOut();
       }
@@ -140,70 +127,121 @@ const EditProfileScreen = ({ route, navigation }) => {
     }
   };
 
+  if (isSubmitting) {
+    return <LoadingSpinner message="Atualizando perfil..." />;
+  }
+
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color="#333" />
+          <View style={styles.backButtonGradient}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+          </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Editar Perfil</Text>
-        <View style={{ width: 28 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        <TouchableOpacity onPress={pickImage} style={styles.profilePictureContainer}>
-          {profilePictureUrl ? (
-            <Image source={{ uri: profilePictureUrl }} style={styles.profilePicture} />
-          ) : (
-            <Ionicons name="camera-outline" size={80} color="#ccc" style={styles.profilePicturePlaceholder} />
-          )}
-          <Text style={styles.changePhotoText}>Trocar foto de perfil</Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
+        {/* Foto de Perfil */}
+        <View style={styles.profilePictureSection}>
+          <View style={styles.profilePictureCard}>
+            <View style={styles.profilePictureContainer}>
+              {profilePictureUrl ? (
+                <Image source={{ uri: profilePictureUrl }} style={styles.profilePicture} />
+              ) : (
+                <View style={styles.profilePicturePlaceholder}>
+                  <Ionicons name="person" size={60} color="white" />
+                </View>
+              )}
+              <TouchableOpacity onPress={pickImage} style={styles.changePictureButton}>
+                <View style={styles.changePictureGradient}>
+                  <Ionicons name="camera" size={20} color="white" />
+                </View>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.profilePictureText}>Toque para alterar a foto</Text>
+          </View>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Nome de Usuário"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="E-mail"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+        {/* Formulário */}
+        <View style={styles.formSection}>
+          <View style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Informações Básicas</Text>
+            
+            <Input
+              label="Nome de usuário"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Digite seu nome de usuário"
+              style={styles.input}
+            />
+            
+            <Input
+              label="E-mail"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Digite seu e-mail"
+              keyboardType="email-address"
+              style={styles.input}
+            />
+          </View>
+        </View>
 
-        <Text style={styles.sectionTitle}>Mudar Senha (Opcional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Senha Antiga"
-          value={oldPassword}
-          onChangeText={setOldPassword}
-          secureTextEntry
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Nova Senha"
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Confirmar Nova Senha"
-          value={confirmNewPassword}
-          onChangeText={setConfirmNewPassword}
-          secureTextEntry
-        />
+        {/* Alteração de Senha */}
+        <View style={styles.passwordSection}>
+          <View style={styles.passwordCard}>
+            <Text style={styles.sectionTitle}>Alterar Senha</Text>
+            <Text style={styles.sectionSubtitle}>
+              Deixe em branco se não quiser alterar a senha
+            </Text>
+            
+            <Input
+              label="Senha Atual"
+              value={oldPassword}
+              onChangeText={setOldPassword}
+              placeholder="Digite sua senha atual"
+              secureTextEntry
+              style={styles.input}
+            />
+            
+            <Input
+              label="Nova Senha"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Digite a nova senha"
+              secureTextEntry
+              style={styles.input}
+            />
+            
+            <Input
+              label="Confirmar Nova Senha"
+              value={confirmNewPassword}
+              onChangeText={setConfirmNewPassword}
+              placeholder="Confirme a nova senha"
+              secureTextEntry
+              style={styles.input}
+            />
+          </View>
+        </View>
 
-        <Button
-          title={isSubmitting ? "Salvando..." : "Salvar Alterações"}
-          onPress={handleUpdateProfile}
-          disabled={isSubmitting}
-        />
+        {/* Botões */}
+        <View style={styles.buttonsSection}>
+          <Button
+            title="Salvar Alterações"
+            onPress={handleUpdateProfile}
+            style={styles.saveButton}
+          />
+          
+          <Button
+            title="Cancelar"
+            onPress={() => navigation.goBack()}
+            variant="secondary"
+            style={styles.cancelButton}
+          />
+        </View>
       </ScrollView>
     </View>
   );
@@ -212,73 +250,165 @@ const EditProfileScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: theme.colors.background,
   },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingTop: 40,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.medium,
   },
+  
   backButton: {
-    padding: 5,
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
   },
+  
+  backButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceVariant,
+    ...theme.shadows.medium,
+  },
+  
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    ...theme.typography.h2,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
+  
+  headerSpacer: {
+    width: 44,
+  },
+  
   scrollViewContent: {
-    padding: 20,
-    alignItems: 'center',
+    paddingBottom: theme.spacing.lg,
   },
+  
+  profilePictureSection: {
+    margin: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.large,
+  },
+  
+  profilePictureCard: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+  },
+  
   profilePictureContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
+    position: 'relative',
+    marginBottom: theme.spacing.md,
   },
+  
   profilePicture: {
     width: 120,
     height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: '#007bff',
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 4,
+    borderColor: theme.colors.primary,
+    ...theme.shadows.medium,
   },
+  
   profilePicturePlaceholder: {
     width: 120,
     height: 120,
-    borderRadius: 60,
-    backgroundColor: '#e0e0e0',
+    borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 4,
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.medium,
   },
-  changePhotoText: {
-    marginTop: 10,
-    color: '#007bff',
-    textDecorationLine: 'underline',
+  
+  changePictureButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
   },
-  input: {
-    width: '100%',
-    padding: 15,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    marginBottom: 15,
-    backgroundColor: '#fff',
-    fontSize: 16,
+  
+  changePictureGradient: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
   },
+  
+  profilePictureText: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+  },
+  
+  formSection: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.large,
+  },
+  
+  formCard: {
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+  },
+  
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
-    alignSelf: 'flex-start',
-    width: '100%',
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md,
+    fontWeight: '600',
+  },
+  
+  input: {
+    marginBottom: theme.spacing.md,
+  },
+  
+  passwordSection: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.large,
+  },
+  
+  passwordCard: {
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+  },
+  
+  sectionSubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.lg,
+    fontStyle: 'italic',
+  },
+  
+  buttonsSection: {
+    marginHorizontal: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  
+  saveButton: {
+    marginBottom: theme.spacing.sm,
+  },
+  
+  cancelButton: {
+    marginBottom: theme.spacing.lg,
   },
 });
 

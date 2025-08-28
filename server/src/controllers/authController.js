@@ -29,14 +29,21 @@ exports.register = async (req, res) => {
 
     // 3. Inserir o novo usuário no banco de dados
     const [result] = await pool.query(
-      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
+      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
       [username, email, hashedPassword]
     );
 
-    // 4. Gerar um token JWT para o usuário recém-registrado (opcional, mas comum)
+    // 4. Gerar um token JWT para o usuário recém-registrado
     const token = jwt.sign({ id: result.insertId, username: username }, jwtSecret, { expiresIn: '1h' });
 
-    res.status(201).json({ message: 'Usuário registrado com sucesso!', userId: result.insertId, token });
+    // 5. Buscar o usuário criado para retornar os dados
+    const [newUser] = await pool.query('SELECT id, username, email FROM users WHERE id = ?', [result.insertId]);
+
+    res.status(201).json({ 
+      message: 'Usuário registrado com sucesso!', 
+      token,
+      user: newUser[0]
+    });
 
   } catch (error) {
     console.error('Erro no registro do usuário:', error);
@@ -55,7 +62,7 @@ exports.login = async (req, res) => {
   try {
     // 1. Encontrar o usuário pelo username ou email
     const [users] = await pool.query(
-      'SELECT id, username, password, profile_picture_url FROM users WHERE username = ? OR email = ?',
+      'SELECT id, username, email, password_hash, profile_picture_url FROM users WHERE username = ? OR email = ?',
       [identifier, identifier]
     );
 
@@ -66,7 +73,7 @@ exports.login = async (req, res) => {
     const user = users[0];
 
     // 2. Comparar a senha fornecida com a senha criptografada
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Credenciais inválidas.' });
@@ -85,7 +92,8 @@ exports.login = async (req, res) => {
       user: {
         id: user.id,
         username: user.username,
-        profilePictureUrl: user.profile_picture_url // Envia a URL da foto de perfil
+        email: user.email,
+        profilePictureUrl: user.profile_picture_url
       }
     });
 

@@ -3,7 +3,7 @@
 import React, { useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 
 import AuthContext from './context/AuthContext';
 import AuthStack from './screens/AuthStack';
@@ -11,18 +11,17 @@ import HomeScreen from './screens/HomeScreen';
 import PostDetailScreen from './screens/PostDetailScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
+import LoadingSpinner from './components/LoadingSpinner';
 
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   const { userToken, isLoading } = useContext(AuthContext);
 
+  console.log('AppNavigator: userToken =', userToken, 'isLoading =', isLoading);
+
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
+    return <LoadingSpinner message="Carregando aplicativo..." />;
   }
 
   return (

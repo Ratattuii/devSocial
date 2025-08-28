@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  Button, ActivityIndicator, Alert, Image, TouchableOpacity, FlatList
+  View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, FlatList
 } from 'react-native';
 import api from '../services/api';
 import AuthContext from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme/theme';
+import Button from '../components/Button';
+import Input from '../components/Input';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const PostDetailScreen = ({ route, navigation }) => {
   const { postId } = route.params;
@@ -19,7 +22,7 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchPostAndComments();
-  }, [postId]); // Adicionado postId como dependência para recarregar se o post mudar (ex: navegação entre posts)
+  }, [postId]);
 
   const fetchPostAndComments = async () => {
     setLoading(true);
@@ -75,262 +78,476 @@ const PostDetailScreen = ({ route, navigation }) => {
   };
 
   if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text>Carregando post...</Text>
-      </View>
-    );
+    return <LoadingSpinner message="Carregando post..." />;
   }
 
   if (!post) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Post não encontrado.</Text>
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorIconContainer}>
+            <Ionicons name="document-text-outline" size={64} color={theme.colors.primary} />
+          </View>
+          <Text style={styles.errorText}>Post não encontrado.</Text>
+        </View>
       </View>
     );
   }
 
   const renderCommentItem = ({ item }) => (
     <View style={styles.commentCard}>
-      <View style={styles.commentHeader}>
-        {item.profile_picture_url ? (
-          <Image source={{ uri: `http://localhost:3001${item.profile_picture_url}` }} style={styles.commentProfilePicture} />
-        ) : (
-          <Ionicons name="person-circle" size={30} color="#ccc" style={styles.commentProfilePicturePlaceholder} />
-        )}
-        <Text style={styles.commentUsername}>{item.username}</Text>
-        <Text style={styles.commentTimestamp}>
-          {new Date(item.created_at).toLocaleString('pt-BR')}
-        </Text>
+      <View style={styles.commentCardGradient}>
+        <View style={styles.commentHeader}>
+          {item.profile_picture_url ? (
+            <Image 
+              source={{ uri: `http://localhost:3001${item.profile_picture_url}` }} 
+              style={styles.commentProfilePicture} 
+            />
+          ) : (
+            <View style={styles.commentProfilePicturePlaceholder}>
+              <Ionicons name="person" size={20} color="white" />
+            </View>
+          )}
+          <View style={styles.commentInfo}>
+            <Text style={styles.commentUsername}>{item.username}</Text>
+            <Text style={styles.commentDate}>
+              {new Date(item.created_at).toLocaleDateString('pt-BR')}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.commentContent}>{item.content}</Text>
       </View>
-      <Text style={styles.commentContent}>{item.content}</Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color="#333" />
+          <View style={styles.backButtonGradient}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+          </View>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Detalhes do Post</Text>
-        <View style={{ width: 28 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        {/* Detalhes do Post */}
-        <View style={styles.postDetailCard}>
-          <View style={styles.postHeader}>
-            {post.profile_picture_url ? (
-              <Image source={{ uri: `http://localhost:3001${post.profile_picture_url}` }} style={styles.profilePicture} />
-            ) : (
-              <Ionicons name="person-circle" size={40} color="#ccc" style={styles.profilePicturePlaceholder} />
+      <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
+        {/* Post Principal */}
+        <View style={styles.postCard}>
+          <View style={styles.postCardGradient}>
+            <View style={styles.postHeader}>
+              {post.user?.profile_picture_url ? (
+                <Image 
+                  source={{ uri: `http://localhost:3001${post.user.profile_picture_url}` }} 
+                  style={styles.postProfilePicture} 
+                />
+              ) : (
+                <View style={styles.postProfilePicturePlaceholder}>
+                  <Ionicons name="person" size={30} color="white" />
+                </View>
+              )}
+              <View style={styles.postInfo}>
+                <Text style={styles.postUsername}>{post.user?.username || 'Usuário'}</Text>
+                <Text style={styles.postDate}>
+                  {new Date(post.created_at).toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+            </View>
+            
+            <Text style={styles.postTitle}>{post.title}</Text>
+            <Text style={styles.postContent}>{post.content}</Text>
+            
+            {post.image_url && (
+              <View style={styles.postImageContainer}>
+                <Image 
+                  source={{ uri: `http://localhost:3001${post.image_url}` }} 
+                  style={styles.postImage} 
+                  resizeMode="cover"
+                />
+              </View>
             )}
-            <Text style={styles.postUsername}>{post.username}</Text>
-          </View>
-          <Text style={styles.postTitle}>{post.title}</Text>
-          <Text style={styles.postContent}>{post.content}</Text>
-          {post.image_url && <Image source={{ uri: `http://localhost:3001${post.image_url}` }} style={styles.postImage} />}
-          <View style={styles.postStatsContainer}>
-            <Text style={styles.postStats}>{post.likes_count} Curtidas</Text>
-            <Text style={styles.postStats}>{post.comments_count} Comentários</Text>
+            
+            <View style={styles.postStats}>
+              <View style={styles.statItem}>
+                <Ionicons name="heart" size={16} color={theme.colors.primary} />
+                <Text style={styles.statText}>{post.likes_count || 0}</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Ionicons name="star" size={16} color={theme.colors.accent} />
+                <Text style={styles.statText}>{post.favorites_count || 0}</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Ionicons name="chatbubble" size={16} color={theme.colors.secondary} />
+                <Text style={styles.statText}>{comments.length}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Seção de Comentários */}
-        <Text style={styles.commentsTitle}>Comentários</Text>
-        <FlatList
-          data={comments}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderCommentItem}
-          scrollEnabled={false}
-          ListEmptyComponent={<Text style={styles.noCommentsText}>Nenhum comentário ainda. Seja o primeiro!</Text>}
-        />
+        <View style={styles.commentsSection}>
+          <View style={styles.commentsHeader}>
+            <View style={styles.commentsHeaderGradient}>
+              <Ionicons name="chatbubbles-outline" size={24} color={theme.colors.primary} />
+              <Text style={styles.commentsTitle}>Comentários ({comments.length})</Text>
+            </View>
+          </View>
 
-        {/* Campo para Adicionar Comentário */}
-        <View style={styles.addCommentContainer}>
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Adicione um comentário..."
-            value={newCommentContent}
-            onChangeText={setNewCommentContent}
-            multiline
-          />
-          <Button
-            title={isSubmittingComment ? "Enviando..." : "Comentar"}
-            onPress={handleCreateComment}
-            disabled={isSubmittingComment}
-          />
+          {/* Formulário de Novo Comentário */}
+          <View style={styles.commentForm}>
+            <View style={styles.commentFormGradient}>
+              <Input
+                placeholder="Adicione um comentário..."
+                value={newCommentContent}
+                onChangeText={setNewCommentContent}
+                multiline
+                numberOfLines={3}
+                style={styles.commentInput}
+              />
+              <Button
+                title={isSubmittingComment ? "Enviando..." : "Comentar"}
+                onPress={handleCreateComment}
+                disabled={isSubmittingComment || !newCommentContent.trim()}
+                style={styles.commentButton}
+              />
+            </View>
+          </View>
+
+          {/* Lista de Comentários */}
+          {comments.length > 0 ? (
+            <FlatList
+              data={comments}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderCommentItem}
+              scrollEnabled={false}
+              contentContainerStyle={styles.commentsList}
+            />
+          ) : (
+            <View style={styles.emptyComments}>
+              <View style={styles.emptyCommentsCard}>
+                <View style={styles.emptyCommentsIcon}>
+                  <Ionicons name="chatbubbles-outline" size={48} color="white" />
+                </View>
+                <Text style={styles.emptyCommentsText}>Nenhum comentário ainda</Text>
+                <Text style={styles.emptyCommentsSubtext}>
+                  Seja o primeiro a comentar!
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: theme.colors.background,
   },
-  loadingContainer: {
+  
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: theme.spacing.xxl,
   },
+  
+  errorIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.large,
+  },
+  
+  errorText: {
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
+  },
+  
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    paddingTop: 40, // Para iOS SafeArea
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    paddingTop: theme.spacing.xl,
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.medium,
   },
+  
   backButton: {
-    padding: 5,
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
   },
+  
+  backButtonGradient: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceVariant,
+    ...theme.shadows.medium,
+  },
+  
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    ...theme.typography.h2,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
+  
+  headerSpacer: {
+    width: 44,
+  },
+  
   scrollViewContent: {
-    paddingBottom: 20, // Espaçamento inferior para a scrollview
+    paddingBottom: theme.spacing.lg,
   },
-  postDetailCard: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    margin: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+  
+  postCard: {
+    margin: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.large,
   },
+  
+  postCardGradient: {
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+  },
+  
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: theme.spacing.md,
   },
-  profilePicture: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
+  
+  postProfilePicture: {
+    width: 50,
+    height: 50,
+    borderRadius: theme.borderRadius.full,
+    marginRight: theme.spacing.md,
+    ...theme.shadows.small,
   },
-  profilePicturePlaceholder: {
-    marginRight: 10,
+  
+  postProfilePicturePlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: theme.borderRadius.full,
+    marginRight: theme.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+    ...theme.shadows.small,
   },
+  
+  postInfo: {
+    flex: 1,
+  },
+  
   postUsername: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#555',
+    ...theme.typography.h4,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
+  
+  postDate: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
+  },
+  
   postTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md,
+    fontWeight: '600',
   },
+  
   postContent: {
-    fontSize: 16,
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md,
     lineHeight: 24,
-    color: '#444',
-    marginBottom: 10,
   },
+  
+  postImageContainer: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
+  },
+  
   postImage: {
     width: '100%',
-    height: 250,
-    borderRadius: 8,
-    marginTop: 10,
-    resizeMode: 'cover',
+    height: 200,
   },
-  postStatsContainer: {
-    flexDirection: 'row',
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingTop: 10,
-    justifyContent: 'space-around',
-  },
+  
   postStats: {
-    fontSize: 14,
-    color: '#777',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
   },
+  
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  
+  statText: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  
+  commentsSection: {
+    marginHorizontal: theme.spacing.md,
+  },
+  
+  commentsHeader: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
+  },
+  
+  commentsHeaderGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+  },
+  
   commentsTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginHorizontal: 15,
-    marginTop: 10,
-    marginBottom: 10,
-    color: '#333',
+    ...theme.typography.h4,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
+  
+  commentForm: {
+    marginBottom: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
+  },
+  
+  commentFormGradient: {
+    padding: theme.spacing.lg,
+    backgroundColor: theme.colors.surface,
+  },
+  
+  commentInput: {
+    marginBottom: theme.spacing.md,
+  },
+  
+  commentButton: {
+    alignSelf: 'flex-end',
+  },
+  
+  commentsList: {
+    gap: theme.spacing.md,
+  },
+  
   commentCard: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 8,
-    marginHorizontal: 15,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
   },
+  
+  commentCardGradient: {
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.surface,
+  },
+  
   commentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: theme.spacing.sm,
   },
+  
   commentProfilePicture: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    marginRight: theme.spacing.sm,
   },
+  
   commentProfilePicturePlaceholder: {
-    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    marginRight: theme.spacing.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary,
   },
+  
+  commentInfo: {
+    flex: 1,
+  },
+  
   commentUsername: {
-    fontWeight: 'bold',
-    fontSize: 14,
-    color: '#555',
-    flex: 1, // Para ocupar o espaço restante
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
   },
-  commentTimestamp: {
-    fontSize: 12,
-    color: '#888',
+  
+  commentDate: {
+    ...theme.typography.caption,
+    color: theme.colors.text.secondary,
   },
+  
   commentContent: {
-    fontSize: 14,
-    color: '#444',
-    marginLeft: 38, // Alinha com o conteúdo do post, abaixo da foto/nome
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    lineHeight: 20,
   },
-  addCommentContainer: {
-    backgroundColor: '#fff',
-    padding: 15,
-    margin: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+  
+  emptyComments: {
+    paddingVertical: theme.spacing.xl,
   },
-  commentInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: '#f9f9f9',
-    minHeight: 60,
-    textAlignVertical: 'top',
+  
+  emptyCommentsCard: {
+    padding: theme.spacing.xl,
+    borderRadius: theme.borderRadius.xl,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.large,
+  },
+  
+  emptyCommentsIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    backgroundColor: theme.colors.secondary,
+  },
+  
+  emptyCommentsText: {
+    ...theme.typography.h4,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  
+  emptyCommentsSubtext: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
   },
 });
 
