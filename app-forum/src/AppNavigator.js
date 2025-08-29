@@ -9,6 +9,7 @@ import HomeScreen from './screens/HomeScreen';
 import PostDetailScreen from './screens/PostDetailScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
+import EditPostScreen from './screens/EditPostScreen';
 import LoadingSpinner from './components/LoadingSpinner';
 
 const Stack = createNativeStackNavigator();
@@ -31,6 +32,7 @@ const AppNavigator = () => {
             <Stack.Screen name="PostDetail" component={PostDetailScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="EditPost" component={EditPostScreen} />
           </>
         ) : (
           <Stack.Screen name="Auth" component={AuthStack} />

@@ -2,232 +2,303 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, FlatList
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
-import Button from '../components/Button';
 import PostCard from '../components/PostCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Button from '../components/Button';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const ProfileScreen = ({ navigation }) => {
-  const { signOut } = useContext(AuthContext);
+  const { userToken, signOut } = useContext(AuthContext);
   const [user, setUser] = useState(null);
-  const [myPosts, setMyPosts] = useState([]);
+  const [userPosts, setUserPosts] = useState([]);
   const [favoritePosts, setFavoritePosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('myPosts');
+  const [activeTab, setActiveTab] = useState('posts');
+  const [stats, setStats] = useState({
+    posts: 0,
+    likes: 0,
+    favorites: 0,
+  });
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchProfileData();
-    });
-    return unsubscribe;
-  }, [navigation]);
+    loadUserData();
+  }, []);
 
-  const fetchProfileData = async () => {
-    setLoading(true);
+  const loadUserData = async () => {
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      console.log('ProfileScreen: Token encontrado:', userToken ? 'SIM' : 'NÃO');
-      
       if (!userToken) {
         Alert.alert('Erro', 'Token de autenticação não encontrado.');
         signOut();
         return;
       }
 
-      console.log('ProfileScreen: Fazendo requisição para /users/me...');
-      const userResponse = await api.get('/users/me', {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
-      console.log('ProfileScreen: Resposta /users/me:', userResponse.data);
+      const [userResponse, postsResponse, favoritesResponse] = await Promise.all([
+        api.get('/users/me', { headers: { Authorization: `Bearer ${userToken}` } }),
+        api.get('/users/me/posts', { headers: { Authorization: `Bearer ${userToken}` } }),
+        api.get('/users/me/favorites', { headers: { Authorization: `Bearer ${userToken}` } }),
+      ]);
+
       setUser(userResponse.data);
-
-      console.log('ProfileScreen: Fazendo requisição para /users/me/posts...');
-      const myPostsResponse = await api.get('/users/me/posts', {
-        headers: { Authorization: `Bearer ${userToken}` }
+      setUserPosts(postsResponse.data);
+      setFavoritePosts(favoritesResponse.data);
+      
+      setStats({
+        posts: postsResponse.data.length,
+        likes: postsResponse.data.reduce((acc, post) => acc + (post.likes_count || 0), 0),
+        favorites: favoritesResponse.data.length,
       });
-      console.log('ProfileScreen: Resposta /users/me/posts:', myPostsResponse.data);
-      setMyPosts(myPostsResponse.data);
-
-      console.log('ProfileScreen: Fazendo requisição para /users/me/favorites...');
-      const favoritePostsResponse = await api.get('/users/me/favorites', {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
-      console.log('ProfileScreen: Resposta /users/me/favorites:', favoritePostsResponse.data);
-      setFavoritePosts(favoritePostsResponse.data);
-
     } catch (error) {
-      console.error('ProfileScreen: Erro ao carregar perfil:', error.message);
-      Alert.alert('Erro', 'Não foi possível carregar o perfil.');
+      console.error('Erro ao carregar dados do usuário:', error);
+      Alert.alert('Erro', 'Não foi possível carregar os dados do perfil.');
     } finally {
       setLoading(false);
     }
   };
 
-  const renderPostItem = ({ item }) => (
-    <PostCard
-      post={item}
-      onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-      showActions={false}
-      style={styles.profilePostCard}
-    />
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair',
+      'Tem certeza que deseja sair?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Sair', style: 'destructive', onPress: signOut },
+      ]
+    );
+  };
+
+  const renderStatCard = (icon, value, label, colors) => (
+    <View style={styles.statCard}>
+      <LinearGradient
+        colors={colors}
+        style={styles.statGradient}
+      >
+        <Ionicons name={icon} size={24} color={theme.colors.text.primary} />
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </LinearGradient>
+    </View>
   );
 
   if (loading) {
     return <LoadingSpinner message="Carregando perfil..." />;
   }
 
-  if (!user) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.errorContainer}>
-          <View style={styles.errorIconContainer}>
-            <Ionicons name="person-circle-outline" size={64} color={theme.colors.primary} />
-          </View>
-          <Text style={styles.errorText}>Perfil não encontrado.</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <View style={styles.backButtonGradient}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
-          </View>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Meu Perfil</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('EditProfile', { user })} style={styles.editButton}>
-          <View style={styles.editButtonGradient}>
-            <Ionicons name="settings-outline" size={20} color="white" />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-        {/* Informações do Usuário */}
-        <View style={styles.profileInfoCard}>
-          <View style={styles.profileCardGradient}>
-            {user.profile_picture_url ? (
-              <Image 
-                source={{ uri: `${api.defaults.baseURL.replace('/api', '')}${user.profile_picture_url}` }} 
-                style={styles.profilePicture} 
-              />
-            ) : (
-              <View style={styles.profilePicturePlaceholder}>
-                <Ionicons name="person" size={50} color="white" />
-              </View>
-            )}
-            <Text style={styles.username}>{user.username}</Text>
-            <Text style={styles.email}>{user.email}</Text>
-            <View style={styles.memberSinceContainer}>
-              <Ionicons name="calendar-outline" size={16} color={theme.colors.text.secondary} />
-              <Text style={styles.memberSince}>
-                Membro desde {new Date(user.created_at).toLocaleDateString('pt-BR')}
-              </Text>
-            </View>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
+      <LinearGradient
+        colors={theme.colors.gradients.dark}
+        style={styles.background}
+      >
+        {/* Header Fixo */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <LinearGradient
+              colors={theme.colors.gradients.glass}
+              style={styles.backButtonGradient}
+            >
+              <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
+            </LinearGradient>
+          </TouchableOpacity>
+          
+          <Text style={styles.headerTitle}>Perfil</Text>
+          
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EditProfile', { user })}
+              style={styles.headerButton}
+            >
+              <LinearGradient
+                colors={theme.colors.gradients.glass}
+                style={styles.headerButtonGradient}
+              >
+                <Ionicons name="create" size={20} color={theme.colors.text.primary} />
+              </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={handleLogout} style={styles.headerButton}>
+              <LinearGradient
+                colors={theme.colors.gradients.glass}
+                style={styles.headerButtonGradient}
+              >
+                <Ionicons name="log-out-outline" size={20} color={theme.colors.text.primary} />
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Abas de Navegação */}
-        <View style={styles.tabsContainer}>
-          <View style={styles.tabsGradient}>
-            <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'myPosts' && styles.activeTab]}
-              onPress={() => setActiveTab('myPosts')}
-              activeOpacity={0.7}
+        <ScrollView 
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Seção do Perfil */}
+          <View style={styles.profileSection}>
+            <LinearGradient
+              colors={theme.colors.gradients.surface}
+              style={styles.profileCard}
             >
-              <Ionicons 
-                name="document-text-outline" 
-                size={20} 
-                color={activeTab === 'myPosts' ? theme.colors.primary : theme.colors.text.secondary} 
-              />
-              <Text style={[styles.tabText, activeTab === 'myPosts' && styles.activeTabText]}>
-                Meus Posts ({myPosts.length})
-              </Text>
-            </TouchableOpacity>
+              <View style={styles.profileContent}>
+                {user?.profile_picture_url ? (
+                  <Image
+                    source={{ uri: user.profile_picture_url }}
+                    style={styles.profileImage}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={theme.colors.gradients.primary}
+                    style={styles.profileImagePlaceholder}
+                  >
+                    <Ionicons name="person" size={48} color={theme.colors.text.primary} />
+                  </LinearGradient>
+                )}
+                
+                <View style={styles.userInfo}>
+                  <Text style={styles.username}>{user?.username}</Text>
+                  <Text style={styles.userEmail}>{user?.email}</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          {/* Estatísticas */}
+          <View style={styles.statsContainer}>
+            {renderStatCard('document-text', stats.posts, 'Posts', theme.colors.gradients.primary)}
+            {renderStatCard('heart', stats.likes, 'Likes', theme.colors.gradients.accent)}
+            {renderStatCard('star', stats.favorites, 'Favoritos', theme.colors.gradients.secondary)}
+          </View>
+
+          {/* Tabs */}
+          <View style={styles.tabsContainer}>
             <TouchableOpacity
-              style={[styles.tabButton, activeTab === 'favorites' && styles.activeTab]}
+              style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
+              onPress={() => setActiveTab('posts')}
+            >
+              <LinearGradient
+                colors={activeTab === 'posts' ? theme.colors.gradients.primary : theme.colors.gradients.glass}
+                style={styles.tabGradient}
+              >
+                <Ionicons 
+                  name="document-text" 
+                  size={20} 
+                  color={theme.colors.text.primary} 
+                />
+                <Text style={styles.tabText}>Meus Posts</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'favorites' && styles.activeTab]}
               onPress={() => setActiveTab('favorites')}
-              activeOpacity={0.7}
             >
-              <Ionicons 
-                name="star-outline" 
-                size={20} 
-                color={activeTab === 'favorites' ? theme.colors.primary : theme.colors.text.secondary} 
-              />
-              <Text style={[styles.tabText, activeTab === 'favorites' && styles.activeTabText]}>
-                Favoritos ({favoritePosts.length})
-              </Text>
+              <LinearGradient
+                colors={activeTab === 'favorites' ? theme.colors.gradients.secondary : theme.colors.gradients.glass}
+                style={styles.tabGradient}
+              >
+                <Ionicons 
+                  name="star" 
+                  size={20} 
+                  color={theme.colors.text.primary} 
+                />
+                <Text style={styles.tabText}>Favoritos</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Conteúdo da Aba Ativa */}
-        {activeTab === 'myPosts' ? (
-          myPosts.length > 0 ? (
-            <FlatList
-              data={myPosts}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderPostItem}
-              scrollEnabled={false}
-              contentContainerStyle={styles.postListContent}
-            />
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyStateCard}>
-                <View style={styles.emptyStateIcon}>
-                  <Ionicons name="document-text-outline" size={48} color="white" />
+          {/* Conteúdo */}
+          <View style={styles.contentContainer}>
+            {activeTab === 'posts' ? (
+              userPosts.length > 0 ? (
+                <View style={styles.postsList}>
+                  {userPosts.map((post) => (
+                    <View key={post.id} style={styles.postItem}>
+                      <PostCard
+                        post={post}
+                        onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+                        onLike={() => {}}
+                        onFavorite={() => {}}
+                        onComment={() => {}}
+                        isLiked={false}
+                        isFavorited={false}
+                      />
+                    </View>
+                  ))}
                 </View>
-                <Text style={styles.emptyStateText}>Você ainda não criou nenhum post</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Compartilhe suas ideias com a comunidade!
-                </Text>
-                <Button 
-                  title="Criar Primeiro Post" 
-                  onPress={() => navigation.navigate('Home')}
-                  style={styles.emptyStateButton}
-                />
-              </View>
-            </View>
-          )
-        ) : (
-          favoritePosts.length > 0 ? (
-            <FlatList
-              data={favoritePosts}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderPostItem}
-              scrollEnabled={false}
-              contentContainerStyle={styles.postListContent}
-            />
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyStateCard}>
-                <View style={styles.emptyStateIcon}>
-                  <Ionicons name="star-outline" size={48} color="white" />
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <LinearGradient
+                    colors={theme.colors.gradients.glass}
+                    style={styles.emptyGradient}
+                  >
+                    <Ionicons name="document-text-outline" size={64} color={theme.colors.text.secondary} />
+                    <Text style={styles.emptyTitle}>Nenhum post ainda</Text>
+                    <Text style={styles.emptyText}>
+                      Comece a compartilhar suas ideias criando seu primeiro post!
+                    </Text>
+                    <Button
+                      title="Criar Primeiro Post"
+                      onPress={() => navigation.navigate('Home')}
+                      style={styles.emptyButton}
+                    />
+                  </LinearGradient>
                 </View>
-                <Text style={styles.emptyStateText}>Você ainda não favoritou nenhum post</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Explore posts interessantes e salve-os aqui!
-                </Text>
-                <Button 
-                  title="Explorar Posts" 
-                  onPress={() => navigation.navigate('Home')}
-                  style={styles.emptyStateButton}
-                />
-              </View>
-            </View>
-          )
-        )}
-      </ScrollView>
+              )
+            ) : (
+              favoritePosts.length > 0 ? (
+                <View style={styles.postsList}>
+                  {favoritePosts.map((post) => (
+                    <View key={post.id} style={styles.postItem}>
+                      <PostCard
+                        post={post}
+                        onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
+                        onLike={() => {}}
+                        onFavorite={() => {}}
+                        onComment={() => {}}
+                        isLiked={false}
+                        isFavorited={true}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <LinearGradient
+                    colors={theme.colors.gradients.glass}
+                    style={styles.emptyGradient}
+                  >
+                    <Ionicons name="star-outline" size={64} color={theme.colors.text.secondary} />
+                    <Text style={styles.emptyTitle}>Nenhum favorito</Text>
+                    <Text style={styles.emptyText}>
+                      Posts que você favoritar aparecerão aqui!
+                    </Text>
+                    <Button
+                      title="Explorar Posts"
+                      onPress={() => navigation.navigate('Home')}
+                      style={styles.emptyButton}
+                    />
+                  </LinearGradient>
+                </View>
+              )
+            )}
+          </View>
+        </ScrollView>
+      </LinearGradient>
     </View>
   );
 };
@@ -235,231 +306,222 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
   },
   
-  errorContainer: {
+  background: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xxl,
-  },
-  
-  errorIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: theme.borderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.primary,
-    ...theme.shadows.large,
-  },
-  
-  errorText: {
-    ...theme.typography.h3,
-    color: theme.colors.text.primary,
-    marginTop: theme.spacing.lg,
   },
   
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
     paddingTop: theme.spacing.xl,
-    backgroundColor: theme.colors.surface,
-    ...theme.shadows.medium,
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   
   backButton: {
-    borderRadius: theme.borderRadius.full,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
   },
   
   backButtonGradient: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surfaceVariant,
-    ...theme.shadows.medium,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
   },
   
   headerTitle: {
-    ...theme.typography.h2,
+    ...theme.typography.h5,
     color: theme.colors.text.primary,
     fontWeight: '600',
   },
   
-  editButton: {
-    borderRadius: theme.borderRadius.full,
+  headerActions: {
+    flexDirection: 'row',
+  },
+  
+  headerButton: {
+    marginLeft: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
   },
   
-  editButtonGradient: {
-    width: 44,
-    height: 44,
+  headerButtonGradient: {
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+  },
+  
+  scrollView: {
+    flex: 1,
+  },
+  
+  profileSection: {
+    padding: theme.spacing.lg,
+  },
+  
+  profileCard: {
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    ...theme.shadows.large,
+  },
+  
+  profileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  profileImage: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.borderRadius.round,
+    marginRight: theme.spacing.lg,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  
+  profileImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.borderRadius.round,
+    marginRight: theme.spacing.lg,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    ...theme.shadows.medium,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   
-  scrollViewContent: {
-    paddingBottom: theme.spacing.lg,
+  userInfo: {
+    flex: 1,
   },
   
-  profileInfoCard: {
-    margin: theme.spacing.md,
-    borderRadius: theme.borderRadius.xl,
+  username: {
+    ...theme.typography.h4,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs,
+    fontWeight: '700',
+  },
+  
+  userEmail: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+  },
+  
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+  },
+  
+  statCard: {
+    flex: 1,
+    marginHorizontal: theme.spacing.xs,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
     ...theme.shadows.large,
   },
   
-  profileCardGradient: {
-    padding: theme.spacing.xl,
+  statGradient: {
+    padding: theme.spacing.lg,
     alignItems: 'center',
-    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.lg,
   },
   
-  profilePicture: {
-    width: 120,
-    height: 120,
-    borderRadius: theme.borderRadius.full,
-    marginBottom: theme.spacing.lg,
-    borderWidth: 4,
-    borderColor: theme.colors.primary,
-    ...theme.shadows.medium,
-  },
-  
-  profilePicturePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: theme.borderRadius.full,
-    marginBottom: theme.spacing.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: theme.colors.primary,
-    ...theme.shadows.medium,
-  },
-  
-  username: {
-    ...theme.typography.h1,
+  statValue: {
+    ...theme.typography.h4,
     color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
-    fontWeight: '600',
+    marginTop: theme.spacing.sm,
+    fontWeight: '700',
   },
   
-  email: {
-    ...theme.typography.body,
-    color: theme.colors.text.secondary,
-    marginBottom: theme.spacing.sm,
-  },
-  
-  memberSinceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  
-  memberSince: {
+  statLabel: {
     ...theme.typography.caption,
     color: theme.colors.text.secondary,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
   },
   
   tabsContainer: {
-    marginHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.md,
-    borderRadius: theme.borderRadius.xl,
-    overflow: 'hidden',
-    ...theme.shadows.medium,
-  },
-  
-  tabsGradient: {
     flexDirection: 'row',
-    padding: theme.spacing.xs,
-    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
   
-  tabButton: {
+  tab: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
+    marginHorizontal: theme.spacing.xs,
     borderRadius: theme.borderRadius.lg,
-    gap: theme.spacing.xs,
+    overflow: 'hidden',
   },
   
   activeTab: {
-    backgroundColor: theme.colors.primary + '20',
+    ...theme.shadows.glow,
+  },
+  
+  tabGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.lg,
   },
   
   tabText: {
-    ...theme.typography.button,
-    color: theme.colors.text.secondary,
-  },
-  
-  activeTabText: {
-    color: theme.colors.primary,
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    marginLeft: theme.spacing.sm,
     fontWeight: '600',
   },
   
-  postListContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
+  contentContainer: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl,
   },
   
-  profilePostCard: {
-    marginBottom: theme.spacing.md,
+  postsList: {
+    gap: theme.spacing.lg,
   },
   
-  emptyState: {
+  postItem: {
+    marginBottom: theme.spacing.lg,
+  },
+  
+  emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: theme.spacing.xxl,
-    paddingHorizontal: theme.spacing.lg,
   },
   
-  emptyStateCard: {
-    padding: theme.spacing.xl,
+  emptyGradient: {
+    alignItems: 'center',
+    padding: theme.spacing.xxl,
     borderRadius: theme.borderRadius.xl,
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    ...theme.shadows.large,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   
-  emptyStateIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: theme.borderRadius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-    backgroundColor: theme.colors.secondary,
-  },
-  
-  emptyStateText: {
-    ...theme.typography.h3,
+  emptyTitle: {
+    ...theme.typography.h4,
     color: theme.colors.text.primary,
+    marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
-    textAlign: 'center',
-    fontWeight: '600',
   },
   
-  emptyStateSubtext: {
+  emptyText: {
     ...theme.typography.body,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    marginBottom: theme.spacing.xl,
+    marginBottom: theme.spacing.lg,
   },
   
-  emptyStateButton: {
+  emptyButton: {
     minWidth: 200,
   },
 });

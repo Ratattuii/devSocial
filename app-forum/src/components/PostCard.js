@@ -16,6 +16,7 @@ const PostCard = ({
   isFavorited = false,
   showActions = true,
   showUserInfo = true,
+  currentUserId,
   style,
 }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +53,9 @@ const PostCard = ({
     if (isLoading) return;
     setIsLoading(true);
     try {
+      console.log('PostCard - Favoritando post:', post.id);
+      console.log('PostCard - Estado atual isFavorited:', isFavorited);
+      console.log('PostCard - Count atual:', post.favorites_count);
       await onFavorite(post.id);
     } catch (error) {
       Alert.alert('Erro', 'Não foi possível processar o favorito.');
@@ -85,151 +89,135 @@ const PostCard = ({
 
   return (
     <Animated.View style={[{ transform: [{ scale: scaleAnim }] }]}>
-      <View style={[styles.container, style]}>
-        {showUserInfo && (
-          <View style={styles.header}>
-            <View style={styles.userInfo}>
-              {post.user?.profile_picture_url ? (
-                <Image
-                  source={{ uri: post.user.profile_picture_url }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <LinearGradient
-                  colors={theme.colors.gradients.primary}
-                  style={styles.avatarPlaceholder}
-                >
-                  <Ionicons name="person" size={20} color={theme.colors.text.inverse} />
-                </LinearGradient>
-              )}
-              <View style={styles.userDetails}>
-                <Text style={styles.username}>{post.user?.username || 'Usuário'}</Text>
-                <Text style={styles.timestamp}>
-                  {formatDate(post.created_at)}
-                </Text>
+      <TouchableOpacity 
+        style={[styles.container, style]} 
+        onPress={onPress}
+        onPressIn={animatePress}
+        activeOpacity={0.9}
+      >
+        <LinearGradient
+          colors={theme.colors.gradients.surface}
+          style={styles.cardGradient}
+        >
+          {showUserInfo && (
+            <View style={styles.header}>
+              <View style={styles.userInfo}>
+                {post.user?.profile_picture_url ? (
+                  <Image
+                    source={{ uri: post.user.profile_picture_url }}
+                    style={styles.avatar}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={theme.colors.gradients.primary}
+                    style={styles.avatarPlaceholder}
+                  >
+                    <Ionicons name="person" size={24} color={theme.colors.text.primary} />
+                  </LinearGradient>
+                )}
+                
+                <View style={styles.userDetails}>
+                  <Text style={styles.username}>{post.user?.username || 'Usuário'}</Text>
+                  <Text style={styles.timestamp}>{formatDate(post.created_at)}</Text>
+                </View>
               </View>
             </View>
-            
-            {(onEdit || onDelete) && (
-              <View style={styles.actions}>
-                {onEdit && (
-                  <TouchableOpacity onPress={handleEdit} style={styles.actionButton}>
-                    <Ionicons name="create-outline" size={20} color={theme.colors.text.secondary} />
-                  </TouchableOpacity>
-                )}
-                {onDelete && (
-                  <TouchableOpacity onPress={handleDelete} style={styles.actionButton}>
-                    <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-          </View>
-        )}
+          )}
 
-        <TouchableOpacity 
-          style={styles.contentContainer}
-          onPress={() => {
-            animatePress();
-            onPress && onPress();
-          }}
-          activeOpacity={0.9}
-        >
           <View style={styles.content}>
-            <Text style={styles.title}>{post.title}</Text>
-            <Text style={styles.text}>{post.content}</Text>
-            
-            {post.image_url && (
-              <View style={styles.imageContainer}>
-                <Image
-                  source={{ uri: post.image_url }}
-                  style={styles.postImage}
-                  resizeMode="cover"
-                />
-              </View>
-            )}
+            <Text style={styles.title} numberOfLines={2}>{post.title}</Text>
+            <Text style={styles.content} numberOfLines={3}>{post.content}</Text>
           </View>
-        </TouchableOpacity>
 
-        {showActions && (
-          <View style={styles.footer}>
-            <View style={styles.stats}>
-              <TouchableOpacity 
-                style={[styles.action, isLiked && styles.actionActive]} 
-                onPress={handleLike}
-                disabled={isLoading}
-                activeOpacity={0.7}
-              >
-                <View style={[
-                  styles.actionIcon,
-                  isLiked && styles.actionIconActive
-                ]}>
+          {showActions && (
+            <View style={styles.actions}>
+              <TouchableOpacity onPress={handleLike} style={styles.actionButton}>
+                <LinearGradient
+                  colors={isLiked ? theme.colors.gradients.accent : theme.colors.gradients.glass}
+                  style={styles.actionGradient}
+                >
                   <Ionicons 
                     name={isLiked ? "heart" : "heart-outline"} 
                     size={20} 
-                    color={isLiked ? theme.colors.error : theme.colors.text.secondary} 
+                    color={isLiked ? theme.colors.text.primary : theme.colors.text.secondary} 
                   />
-                </View>
-                <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
-                  {post.likes_count || 0}
-                </Text>
+                  <Text style={[styles.actionText, isLiked && styles.actionTextActive]}>
+                    {post.likes_count || 0}
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.action} 
-                onPress={handleComment}
-                activeOpacity={0.7}
-              >
-                <View style={styles.actionIcon}>
+              <TouchableOpacity onPress={handleComment} style={styles.actionButton}>
+                <LinearGradient
+                  colors={theme.colors.gradients.glass}
+                  style={styles.actionGradient}
+                >
                   <Ionicons name="chatbubble-outline" size={20} color={theme.colors.text.secondary} />
-                </View>
-                <Text style={styles.actionText}>{post.comments_count || 0}</Text>
+                  <Text style={styles.actionText}>{post.comments_count || 0}</Text>
+                </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.action, isFavorited && styles.actionActive]} 
-                onPress={handleFavorite}
-                disabled={isLoading}
-                activeOpacity={0.7}
-              >
-                <View style={[
-                  styles.actionIcon,
-                  isFavorited && styles.actionIconActive
-                ]}>
+              <TouchableOpacity onPress={handleFavorite} style={styles.actionButton}>
+                <LinearGradient
+                  colors={isFavorited ? theme.colors.gradients.secondary : theme.colors.gradients.glass}
+                  style={styles.actionGradient}
+                >
                   <Ionicons 
                     name={isFavorited ? "star" : "star-outline"} 
                     size={20} 
-                    color={isFavorited ? theme.colors.accent : theme.colors.text.secondary} 
+                    color={isFavorited ? theme.colors.text.primary : theme.colors.text.secondary} 
                   />
-                </View>
-                <Text style={[styles.actionText, isFavorited && styles.actionTextActive]}>
-                  {post.favorites_count || 0}
-                </Text>
+                  <Text style={[styles.actionText, isFavorited && styles.actionTextActive]}>
+                    {post.favorites_count || 0}
+                  </Text>
+                </LinearGradient>
               </TouchableOpacity>
+
+              {/* Botões de editar/deletar apenas para posts do usuário logado */}
+              {currentUserId && post.user_id === currentUserId && (
+                <View style={styles.ownerActions}>
+                  <TouchableOpacity onPress={handleEdit} style={styles.ownerActionButton}>
+                    <LinearGradient
+                      colors={theme.colors.gradients.primary}
+                      style={styles.ownerActionGradient}
+                    >
+                      <Ionicons name="create-outline" size={16} color={theme.colors.text.primary} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={handleDelete} style={styles.ownerActionButton}>
+                    <LinearGradient
+                      colors={theme.colors.gradients.accent}
+                      style={styles.ownerActionGradient}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={theme.colors.text.primary} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          </View>
-        )}
-      </View>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.xl,
-    marginBottom: theme.spacing.lg,
     overflow: 'hidden',
-    ...theme.shadows.medium,
+    ...theme.shadows.large,
+  },
+  
+  cardGradient: {
+    padding: theme.spacing.lg,
   },
   
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: theme.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderLight,
+    marginBottom: theme.spacing.lg,
   },
   
   userInfo: {
@@ -269,94 +257,73 @@ const styles = StyleSheet.create({
     color: theme.colors.text.tertiary,
   },
   
-  actions: {
-    flexDirection: 'row',
-  },
-  
-  actionButton: {
-    padding: theme.spacing.sm,
-    marginLeft: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.surfaceVariant,
-  },
-  
-  contentContainer: {
-    flex: 1,
-  },
-  
   content: {
-    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
   
   title: {
     ...theme.typography.h5,
     color: theme.colors.text.primary,
     marginBottom: theme.spacing.md,
+    fontWeight: '600',
   },
   
-  text: {
+  content: {
     ...theme.typography.body,
-    color: theme.colors.text.primary,
-    lineHeight: 24,
-    marginBottom: theme.spacing.lg,
+    color: theme.colors.text.secondary,
+    lineHeight: 22,
   },
   
-  imageContainer: {
-    borderRadius: theme.borderRadius.lg,
-    overflow: 'hidden',
-    ...theme.shadows.small,
-  },
-  
-  postImage: {
-    width: '100%',
-    height: 200,
-  },
-  
-  footer: {
-    padding: theme.spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderLight,
-    backgroundColor: theme.colors.surfaceVariant,
-  },
-  
-  stats: {
+  actions: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
   
-  action: {
+  actionButton: {
+    flex: 1,
+    marginHorizontal: theme.spacing.xs,
+  },
+  
+  actionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.surface,
-    ...theme.shadows.small,
-    minHeight: 44,
-  },
-  
-  actionActive: {
-    backgroundColor: theme.colors.primary,
-  },
-  
-  actionIcon: {
-    marginRight: theme.spacing.xs,
-    padding: theme.spacing.xs,
-    borderRadius: theme.borderRadius.sm,
-  },
-  
-  actionIconActive: {
-    backgroundColor: theme.colors.text.inverse,
   },
   
   actionText: {
     ...theme.typography.bodySmall,
     color: theme.colors.text.secondary,
-    fontWeight: '600',
+    marginLeft: theme.spacing.xs,
+    fontWeight: '500',
   },
   
   actionTextActive: {
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.primary,
+    fontWeight: '600',
+  },
+  
+  ownerActions: {
+    flexDirection: 'row',
+    marginLeft: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  
+  ownerActionButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  
+  ownerActionGradient: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

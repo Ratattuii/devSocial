@@ -47,7 +47,7 @@ const Input = ({
       {
         translateY: animatedValue.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -20],
+          outputRange: [0, -24],
         }),
       },
       {
@@ -66,7 +66,7 @@ const Input = ({
   const getBorderColor = () => {
     if (error) return theme.colors.error;
     if (isFocused) return theme.colors.primary;
-    return theme.colors.border;
+    return 'transparent';
   };
 
   return (
@@ -145,10 +145,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: theme.spacing.xs,
     position: 'absolute',
-    top: 16,
+    top: 20,
     left: theme.spacing.md,
     zIndex: 1,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: theme.colors.background,
     paddingHorizontal: theme.spacing.xs,
   },
   
@@ -158,16 +158,19 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
-    ...theme.shadows.small,
+    ...theme.shadows.medium,
+    borderColor: 'transparent',
   },
   
   inputContainerFocused: {
-    ...theme.shadows.medium,
+    ...theme.shadows.large,
     borderWidth: 2,
+    ...theme.shadows.glow,
   },
   
   inputContainerError: {
     borderColor: theme.colors.error,
+    ...theme.shadows.glow,
   },
   
   inputContainerDisabled: {
@@ -185,7 +188,7 @@ const styles = StyleSheet.create({
   },
   
   inputMultiline: {
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: 'top',
   },
   

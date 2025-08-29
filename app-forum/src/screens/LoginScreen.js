@@ -1,7 +1,7 @@
 
 
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, StatusBar, Dimensions, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AuthContext from '../context/AuthContext';
@@ -10,6 +10,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/theme';
 import Button from '../components/Button';
 import Input from '../components/Input';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const LoginScreen = ({ navigation }) => {
   const { signIn } = useContext(AuthContext);
@@ -22,13 +24,11 @@ const LoginScreen = ({ navigation }) => {
     const newErrors = {};
 
     if (!identifier.trim()) {
-      newErrors.identifier = 'Email ou usuário é obrigatório';
+      newErrors.identifier = 'Email ou nome de usuário é obrigatório';
     }
 
     if (!password.trim()) {
       newErrors.password = 'Senha é obrigatória';
-    } else if (password.length < 6) {
-      newErrors.password = 'Senha deve ter pelo menos 6 caracteres';
     }
 
     setErrors(newErrors);
@@ -39,29 +39,23 @@ const LoginScreen = ({ navigation }) => {
     if (!validateForm()) return;
 
     setLoading(true);
-    
     try {
       const response = await api.post('/auth/login', {
         identifier,
-        password
+        password,
       });
 
       const { token, user } = response.data;
-      
-      console.log('LoginScreen: Token recebido:', token ? 'SIM' : 'NÃO');
-      console.log('LoginScreen: Token:', token);
-      console.log('LoginScreen: User:', user);
-      
       await AsyncStorage.setItem('userToken', token);
       await AsyncStorage.setItem('userData', JSON.stringify(user));
-      signIn(token);
+      signIn(token, user);
       
       Alert.alert('Sucesso', 'Login realizado com sucesso!');
     } catch (error) {
-      console.error('Erro no login:', error);
+      console.error('Erro no login:', error.response?.data || error.message);
       Alert.alert(
         'Erro no Login',
-        error.response?.data?.message || 'Ocorreu um erro ao fazer login. Tente novamente.'
+        error.response?.data?.message || 'Credenciais inválidas. Tente novamente.'
       );
     } finally {
       setLoading(false);
@@ -69,89 +63,125 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
       <LinearGradient
-        colors={theme.colors.gradients.primary}
+        colors={theme.colors.gradients.dark}
         style={styles.background}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <LinearGradient
-                colors={theme.colors.gradients.surface}
-                style={styles.logo}
-              >
-                <Ionicons name="chatbubbles" size={48} color={theme.colors.primary} />
-              </LinearGradient>
+        {/* Side Panel */}
+        <View style={styles.sidePanel}>
+          <LinearGradient
+            colors={theme.colors.gradients.primary}
+            style={styles.sidePanelGradient}
+          >
+            <View style={styles.sidePanelContent}>
+              <View style={styles.brandSection}>
+                <View style={styles.brandIcon}>
+                  <Ionicons name="code-slash" size={40} color={theme.colors.text.primary} />
+                </View>
+                <Text style={styles.brandName}>DevSocial</Text>
+                <Text style={styles.brandTagline}>Conecte-se. Compartilhe. Evolua.</Text>
+              </View>
+              
+              <View style={styles.featuresSection}>
+                <View style={styles.featureItem}>
+                  <Ionicons name="people" size={24} color={theme.colors.text.primary} />
+                  <Text style={styles.featureText}>Comunidade ativa de desenvolvedores</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="share-social" size={24} color={theme.colors.text.primary} />
+                  <Text style={styles.featureText}>Compartilhe projetos e experiências</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="trending-up" size={24} color={theme.colors.text.primary} />
+                  <Text style={styles.featureText}>Aprenda com a comunidade</Text>
+                </View>
+              </View>
             </View>
-            <Text style={styles.title}>Bem-vindo de volta!</Text>
-            <Text style={styles.subtitle}>
-              Entre na sua conta para continuar compartilhando
-            </Text>
-          </View>
+          </LinearGradient>
+        </View>
 
-          {/* Form */}
-          <View style={styles.formContainer}>
-            <Input
-              label="Email ou Usuário"
-              placeholder="Digite seu email ou nome de usuário"
-              value={identifier}
-              onChangeText={(text) => {
-                setIdentifier(text);
-                if (errors.identifier) {
-                  setErrors(prev => ({ ...prev, identifier: null }));
-                }
-              }}
-              error={errors.identifier}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-
-            <Input
-              label="Senha"
-              placeholder="Digite sua senha"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errors.password) {
-                  setErrors(prev => ({ ...prev, password: null }));
-                }
-              }}
-              error={errors.password}
-              secureTextEntry
-            />
-
-            <Button
-              title="Entrar"
-              onPress={handleLogin}
-              loading={loading}
-              disabled={loading}
-              style={styles.loginButton}
-            />
-          </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Não tem uma conta?{' '}
-              <Text 
-                style={styles.linkText}
-                onPress={() => navigation.navigate('Register')}
-              >
-                Cadastre-se
+        {/* Main Content */}
+        <View style={styles.mainContent}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <Text style={styles.welcomeText}>Bem-vindo de volta!</Text>
+              <Text style={styles.subtitleText}>
+                Entre na sua conta para continuar
               </Text>
-            </Text>
-          </View>
-        </ScrollView>
+            </View>
+
+            <View style={styles.formSection}>
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail" size={20} color={theme.colors.text.secondary} />
+                  <Input
+                    placeholder="Email ou nome de usuário"
+                    value={identifier}
+                    onChangeText={(text) => {
+                      setIdentifier(text);
+                      if (errors.identifier) {
+                        setErrors(prev => ({ ...prev, identifier: null }));
+                      }
+                    }}
+                    error={errors.identifier}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed" size={20} color={theme.colors.text.secondary} />
+                  <Input
+                    placeholder="Sua senha"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (errors.password) {
+                        setErrors(prev => ({ ...prev, password: null }));
+                      }
+                    }}
+                    error={errors.password}
+                    secureTextEntry
+                    style={styles.input}
+                  />
+                </View>
+              </View>
+
+              <Button
+                title="Entrar"
+                onPress={handleLogin}
+                loading={loading}
+                disabled={loading}
+                style={styles.loginButton}
+              />
+            </View>
+
+
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Não tem uma conta?{' '}
+                <Text 
+                  style={styles.linkText}
+                  onPress={() => navigation.navigate('Register')}
+                >
+                  Cadastre-se
+                </Text>
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
       </LinearGradient>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -162,57 +192,129 @@ const styles = StyleSheet.create({
   
   background: {
     flex: 1,
+    flexDirection: 'row',
+  },
+  
+  sidePanel: {
+    width: screenWidth * 0.4,
+    height: screenHeight,
+  },
+  
+  sidePanelGradient: {
+    flex: 1,
+    padding: theme.spacing.xl,
+    justifyContent: 'space-between',
+  },
+  
+  sidePanelContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  
+  brandSection: {
+    alignItems: 'center',
+    marginTop: theme.spacing.xxl,
+  },
+  
+  brandIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  
+  brandName: {
+    ...theme.typography.h2,
+    color: theme.colors.text.primary,
+    fontWeight: '800',
+    marginBottom: theme.spacing.sm,
+  },
+  
+  brandTagline: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
+  
+  featuresSection: {
+    marginBottom: theme.spacing.xxl,
+  },
+  
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  
+  featureText: {
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    marginLeft: theme.spacing.md,
+    flex: 1,
+  },
+  
+  mainContent: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: theme.spacing.lg,
+    padding: theme.spacing.xl,
   },
   
   header: {
-    alignItems: 'center',
     marginBottom: theme.spacing.xxl,
   },
   
-  logoContainer: {
+  welcomeText: {
+    ...theme.typography.h1,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '700',
+  },
+  
+  subtitleText: {
+    ...theme.typography.body,
+    color: theme.colors.text.secondary,
+    opacity: 0.8,
+  },
+  
+  formSection: {
+    marginBottom: theme.spacing.xl,
+  },
+  
+  inputContainer: {
     marginBottom: theme.spacing.lg,
   },
   
-  logo: {
-    width: 100,
-    height: 100,
-    borderRadius: theme.borderRadius.xl,
-    justifyContent: 'center',
+  inputWrapper: {
+    flexDirection: 'row',
     alignItems: 'center',
-    ...theme.shadows.large,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   
-  title: {
-    ...theme.typography.h1,
-    color: theme.colors.text.inverse,
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  
-  subtitle: {
+  input: {
+    flex: 1,
+    marginLeft: theme.spacing.md,
+    color: theme.colors.text.primary,
     ...theme.typography.body,
-    color: theme.colors.text.inverse,
-    textAlign: 'center',
-    opacity: 0.9,
-  },
-  
-  formContainer: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.xl,
-    marginBottom: theme.spacing.xl,
-    ...theme.shadows.large,
   },
   
   loginButton: {
     marginTop: theme.spacing.lg,
   },
+  
+
   
   footer: {
     alignItems: 'center',
@@ -220,12 +322,12 @@ const styles = StyleSheet.create({
   
   footerText: {
     ...theme.typography.body,
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
   },
   
   linkText: {
-    color: theme.colors.accentLight,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 });

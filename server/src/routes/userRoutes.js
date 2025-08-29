@@ -2,12 +2,23 @@ const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const pool = require('../../db');
 
 router.get('/me', authMiddleware.verifyToken, userController.getMe);
 
 router.get('/me/posts', authMiddleware.verifyToken, userController.getMyPosts);
 
 router.get('/me/favorites', authMiddleware.verifyToken, userController.getMyFavoritePosts);
+
+router.get('/me/likes', authMiddleware.verifyToken, async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT post_id FROM likes WHERE user_id = ?', [req.user.id]);
+    res.status(200).json(rows);
+  } catch (error) {
+    console.error('Erro ao buscar likes do usuário:', error);
+    res.status(500).json({ message: 'Erro interno do servidor ao buscar likes do usuário.' });
+  }
+});
 
 router.put('/me', authMiddleware.verifyToken, userController.updateProfile);
 

@@ -2,113 +2,205 @@
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
-  View, Text, StyleSheet, Alert,
-  FlatList, TouchableOpacity, ActivityIndicator, Image, ScrollView
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  TextInput,
+  Image,
+  Dimensions,
+  Animated,
+  StatusBar,
 } from 'react-native';
-import AuthContext from '../context/AuthContext';
-import api from '../services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import AuthContext from '../context/AuthContext';
+import api from '../services/api';
 import { theme } from '../theme/theme';
-import Button from '../components/Button';
-import Input from '../components/Input';
 import PostCard from '../components/PostCard';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Button from '../components/Button';
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
-  const { signOut } = useContext(AuthContext);
+  const { userToken, signOut, user } = useContext(AuthContext);
   const [posts, setPosts] = useState([]);
-  const [newPostTitle, setNewPostTitle] = useState('');
-  const [newPostContent, setNewPostContent] = useState('');
-  const [loadingPosts, setLoadingPosts] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [userLikes, setUserLikes] = useState({});
   const [userFavorites, setUserFavorites] = useState({});
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPostTitle, setNewPostTitle] = useState('');
+  const [newPostContent, setNewPostContent] = useState('');
   const [newPostImageUri, setNewPostImageUri] = useState(null);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [editingPost, setEditingPost] = useState(null);
-  const [editPostTitle, setEditPostTitle] = useState('');
-  const [editPostContent, setEditPostContent] = useState('');
+  const [creatingPost, setCreatingPost] = useState(false);
+
 
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        const userToken = await AsyncStorage.getItem('userToken');
-        if (userToken) {
-          const userResponse = await api.get('/users/me', {
-            headers: { Authorization: `Bearer ${userToken}` }
-          });
-          setCurrentUser(userResponse.data);
-          setCurrentUserId(userResponse.data.id);
-        }
-      } catch (error) {
-        console.error('Erro ao carregar dados do usuário:', error);
-      }
-    };
-    
-    loadUserData();
     fetchPosts();
-
     (async () => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permissão Negada', 'Desculpe, precisamos de permissões de galeria para isso funcionar!');
+        Alert.alert('Permissão necessária', 'Precisamos de permissão para acessar sua galeria.');
       }
     })();
-  }, [searchTerm]);
+  }, []);
+
+    const handleLogout = () => {
+    console.log('HomeScreen: handleLogout chamado');
+    console.log('HomeScreen: signOut disponível:', !!signOut);
+    console.log('HomeScreen: Executando logout diretamente...');
+    signOut();
+  };
 
   const fetchPosts = async () => {
-    setLoadingPosts(true);
     try {
+      console.log('Buscando posts...');
       const response = await api.get(`/posts?q=${searchTerm}`);
-
+      console.log('Posts recebidos:', response.data);
+      
       let initialUserLikes = {};
       let initialUserFavorites = {};
-      
-      if (currentUserId) {
+
+      if (userToken) {
         try {
-          const userToken = await AsyncStorage.getItem('userToken');
+          console.log('Buscando interações do usuário...');
           const [likesResponse, favoritesResponse] = await Promise.all([
-            api.get(`/users/${currentUserId}/likes`, {
-              headers: { Authorization: `Bearer ${userToken}` }
-            }),
-            api.get(`/users/${currentUserId}/favorites`, {
-              headers: { Authorization: `Bearer ${userToken}` }
-            })
+            api.get('/users/me/likes', { headers: { Authorization: `Bearer ${userToken}` } }),
+            api.get('/users/me/favorites', { headers: { Authorization: `Bearer ${userToken}` } }),
           ]);
-          
+
+          console.log('Likes recebidos:', likesResponse.data);
+          console.log('Favoritos recebidos:', favoritesResponse.data);
+
           likesResponse.data.forEach(like => {
             initialUserLikes[like.post_id] = true;
           });
-          
+
           favoritesResponse.data.forEach(favorite => {
-            initialUserFavorites[favorite.post_id] = true;
+            if (favorite.post_id) {
+              initialUserFavorites[favorite.post_id] = true;
+              console.log('Post favoritado encontrado:', favorite.post_id);
+            } else {
+              console.log('Favorito com post_id undefined:', favorite);
+            }
           });
         } catch (error) {
-          console.error('Erro ao buscar interações do usuário:', error.response?.data || error.message);
+          console.log('Erro ao buscar interações do usuário:', error);
         }
       }
-      
+
+      setPosts(response.data);
       setUserLikes(initialUserLikes);
       setUserFavorites(initialUserFavorites);
-      setPosts(response.data);
+      console.log('Estado inicial dos favoritos:', initialUserFavorites);
     } catch (error) {
-      console.error('Erro ao buscar posts:', error.response?.data || error.message);
+      console.error('Erro ao buscar posts:', error);
       Alert.alert('Erro', 'Não foi possível carregar os posts.');
     } finally {
-      setLoadingPosts(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const pickPostImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
+  const handleLike = async (postId) => {
+    if (!userToken) {
+      Alert.alert('Erro', 'Você precisa estar logado para curtir posts.');
+      return;
+    }
+
+    try {
+      await api.post(`/posts/${postId}/like`, {}, { headers: { Authorization: `Bearer ${userToken}` } });
+      setUserLikes(prev => ({ ...prev, [postId]: !prev[postId] }));
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          const currentCount = post.likes_count || 0;
+          const newCount = userLikes[postId] ? currentCount - 1 : currentCount + 1;
+          return { ...post, likes_count: newCount };
+        }
+        return post;
+      }));
+    } catch (error) {
+      console.error('Erro ao curtir post:', error);
+    }
+  };
+
+  const handleFavorite = async (postId) => {
+    if (!userToken) {
+      Alert.alert('Erro', 'Você precisa estar logado para favoritar posts.');
+      return;
+    }
+
+    try {
+      console.log('Favoritando post:', postId);
+      console.log('Estado atual do favorito:', userFavorites[postId]);
+      
+      await api.post(`/posts/${postId}/favorite`, {}, { headers: { Authorization: `Bearer ${userToken}` } });
+      
+      const isCurrentlyFavorited = userFavorites[postId] || false;
+      const newFavoriteState = !isCurrentlyFavorited;
+      
+      console.log('Novo estado do favorito:', newFavoriteState);
+      
+      setUserFavorites(prev => ({ ...prev, [postId]: newFavoriteState }));
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          const currentCount = post.favorites_count || 0;
+          const newCount = isCurrentlyFavorited ? currentCount - 1 : currentCount + 1;
+          console.log('Count atual:', currentCount, 'Novo count de favoritos:', newCount);
+          return { ...post, favorites_count: newCount };
+        }
+        return post;
+      }));
+    } catch (error) {
+      console.error('Erro ao favoritar post:', error);
+    }
+  };
+
+  const handleComment = (postId) => {
+    navigation.navigate('PostDetail', { postId });
+  };
+
+  const handleEditPost = (post) => {
+    navigation.navigate('EditPost', { post });
+  };
+
+  const handleDeletePost = (postId) => {
+    Alert.alert(
+      'Excluir Post',
+      'Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: () => confirmDeletePost(postId) },
+      ]
+    );
+  };
+
+  const confirmDeletePost = async (postId) => {
+    try {
+      await api.delete(`/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
+      
+      setPosts(posts.filter(post => post.id !== postId));
+      Alert.alert('Sucesso', 'Post excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir post:', error.response?.data || error.message);
+      Alert.alert('Erro', 'Não foi possível excluir o post.');
+    }
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 3],
+      aspect: [16, 9],
       quality: 0.8,
     });
 
@@ -117,43 +209,34 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  const handleCreatePost = async () => {
+  const createPost = async () => {
     if (!newPostTitle.trim() || !newPostContent.trim()) {
-      Alert.alert('Erro', 'Título e conteúdo do post não podem ser vazios.');
+      Alert.alert('Erro', 'Título e conteúdo são obrigatórios.');
       return;
     }
 
-    setIsSubmitting(true);
+    setCreatingPost(true);
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        Alert.alert('Erro de Autenticação', 'Você precisa estar logado para criar um post.');
-        signOut();
-        return;
-      }
-
       let imageUrlToSave = null;
       if (newPostImageUri) {
         const formData = new FormData();
         formData.append('postImage', {
           uri: newPostImageUri,
-          name: `post_${currentUserId}_${Date.now()}.jpg`,
           type: 'image/jpeg',
+          name: 'post-image.jpg',
         });
 
         try {
           const uploadResponse = await api.post('/upload/post-image', formData, {
             headers: {
               'Content-Type': 'multipart/form-data',
-              'Authorization': `Bearer ${userToken}`,
+              Authorization: `Bearer ${userToken}`,
             },
           });
           imageUrlToSave = uploadResponse.data.imageUrl;
         } catch (uploadError) {
           console.error('Erro ao fazer upload da imagem do post:', uploadError.response?.data || uploadError.message);
-          Alert.alert('Erro de Upload', 'Não foi possível fazer upload da imagem do post.');
-          setIsSubmitting(false);
-          return;
+          Alert.alert('Erro', 'Não foi possível fazer upload da imagem. O post será criado sem imagem.');
         }
       }
 
@@ -163,261 +246,167 @@ const HomeScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
 
-      Alert.alert('Sucesso', 'Post criado com sucesso!');
       setNewPostTitle('');
       setNewPostContent('');
       setNewPostImageUri(null);
+      setShowCreateModal(false);
       fetchPosts();
+      Alert.alert('Sucesso', 'Post criado com sucesso!');
     } catch (error) {
       console.error('Erro ao criar post:', error.response?.data || error.message);
-      Alert.alert('Erro ao Criar Post', error.response?.data?.message || 'Ocorreu um erro ao criar o post.');
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        signOut();
-      }
+      Alert.alert('Erro', 'Não foi possível criar o post. Tente novamente.');
     } finally {
-      setIsSubmitting(false);
+      setCreatingPost(false);
     }
   };
 
-  const handleToggleLike = async (postId) => {
-    try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        Alert.alert('Erro', 'Você precisa estar logado para curtir posts.');
-        signOut();
-        return;
-      }
-      const response = await api.post(
-        `/posts/${postId}/like`,
-        {},
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-
-      const liked = response.data.liked;
-      setUserLikes(prevLikes => ({
-        ...prevLikes,
-        [postId]: liked,
-      }));
-
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === postId
-            ? { ...post, likes_count: liked ? post.likes_count + 1 : Math.max(0, post.likes_count - 1) }
-            : post
-        )
-      );
-
-    } catch (error) {
-      console.error('Erro ao curtir/descurtir:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível processar o like.');
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        signOut();
-      }
-    }
-  };
-
-  const handleToggleFavorite = async (postId) => {
-    try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      if (!userToken) {
-        Alert.alert('Erro', 'Você precisa estar logado para favoritar posts.');
-        signOut();
-        return;
-      }
-      
-      const response = await api.post(
-        `/posts/${postId}/favorite`,
-        {},
-        { headers: { Authorization: `Bearer ${userToken}` } }
-      );
-
-      const favorited = response.data.favorited;
-      setUserFavorites(prevFavorites => ({
-        ...prevFavorites,
-        [postId]: favorited,
-      }));
-
-      setPosts(prevPosts =>
-        prevPosts.map(post =>
-          post.id === postId
-            ? { ...post, favorites_count: favorited ? (post.favorites_count || 0) + 1 : Math.max(0, (post.favorites_count || 0) - 1) }
-            : post
-        )
-      );
-
-    } catch (error) {
-      console.error('Erro ao favoritar/desfavoritar:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível processar o favorito.');
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        signOut();
-      }
-    }
-  };
-
-  const handleLogout = () => {
-    console.log('HomeScreen: Botão Sair pressionado!');
-    console.log('HomeScreen: signOut é uma função?', typeof signOut);
-    signOut();
-    console.log('HomeScreen: signOut() chamado!');
-  };
-
-  const handleEditPost = (post) => {
-    setEditingPost(post);
-    setEditPostTitle(post.title);
-    setEditPostContent(post.content);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editPostTitle.trim() || !editPostContent.trim()) {
-      Alert.alert('Erro', 'Título e conteúdo não podem ser vazios.');
-      return;
-    }
-
-    try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      await api.put(`/posts/${editingPost.id}`, {
-        title: editPostTitle,
-        content: editPostContent
-      }, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
-      
-      setPosts(prevPosts => prevPosts.map(post => 
-        post.id === editingPost.id 
-          ? { ...post, title: editPostTitle, content: editPostContent }
-          : post
-      ));
-      
-      setEditingPost(null);
-      setEditPostTitle('');
-      setEditPostContent('');
-      Alert.alert('Sucesso', 'Post editado com sucesso!');
-    } catch (error) {
-      console.error('Erro ao editar post:', error.response?.data || error.message);
-      Alert.alert('Erro', 'Não foi possível editar o post.');
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingPost(null);
-    setEditPostTitle('');
-    setEditPostContent('');
-  };
-
-  const handleDeletePost = async (postId) => {
-    console.log('HomeScreen: Tentando excluir post ID:', postId);
-    
-    try {
-      console.log('HomeScreen: Confirmando exclusão do post ID:', postId);
-      const userToken = await AsyncStorage.getItem('userToken');
-      console.log('HomeScreen: Token encontrado:', userToken ? 'SIM' : 'NÃO');
-      
-      const response = await api.delete(`/posts/${postId}`, {
-        headers: { Authorization: `Bearer ${userToken}` }
-      });
-      
-      console.log('HomeScreen: Resposta da exclusão:', response.data);
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
-      Alert.alert('Sucesso', 'Post excluído com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir post:', error.response?.data || error.message);
-      Alert.alert('Erro', 'Não foi possível excluir o post.');
-    }
-  };
-
-  const renderPostItem = ({ item }) => (
-    <PostCard
-      post={item}
-      onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-      onLike={handleToggleLike}
-      onFavorite={handleToggleFavorite}
-      onComment={() => navigation.navigate('PostDetail', { postId: item.id })}
-      onEdit={item.user_id === currentUserId ? handleEditPost : null}
-      onDelete={item.user_id === currentUserId ? handleDeletePost : null}
-      isLiked={userLikes[item.id] || false}
-      isFavorited={userFavorites[item.id] || false}
-    />
+  const renderPost = ({ item, index }) => (
+    <View style={styles.postContainer}>
+      <PostCard
+        post={item}
+        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+        onLike={handleLike}
+        onFavorite={handleFavorite}
+        onComment={handleComment}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
+        isLiked={userLikes[item.id]}
+        isFavorited={userFavorites[item.id]}
+        currentUserId={user?.id}
+      />
+    </View>
   );
+
+
+
+  if (loading) {
+    return <LoadingSpinner message="Carregando posts..." />;
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.title}>Fórum Social</Text>
-          {currentUser && (
-            <Text style={styles.subtitle}>Olá, {currentUser.username}!</Text>
-          )}
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Profile')} 
-            style={styles.profileButton}
-          >
-            <Ionicons name="person-circle" size={32} color={theme.colors.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
+      <LinearGradient
+        colors={theme.colors.gradients.dark}
+        style={styles.background}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+            <LinearGradient
+              colors={theme.colors.gradients.glass}
+              style={styles.headerButtonGradient}
+            >
+              <Ionicons name="person" size={24} color={theme.colors.text.primary} />
+            </LinearGradient>
           </TouchableOpacity>
-          <Button 
-            title="Sair" 
-            variant="outline" 
-            size="small" 
-            onPress={handleLogout}
-            style={styles.logoutButton}
-          />
-        </View>
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Barra de Pesquisa */}
-        <View style={styles.searchContainer}>
-          <Input
-            placeholder="Pesquisar posts..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            style={styles.searchInput}
-          />
-          <Button 
-            title="Buscar" 
-            size="small" 
-            onPress={fetchPosts}
-            style={styles.searchButton}
-          />
-        </View>
-
-        {/* Botão para criar novo post */}
-        <Button
-          title={showCreatePost ? "Cancelar" : "Criar Novo Post"}
-          variant={showCreatePost ? "outline" : "primary"}
-          onPress={() => setShowCreatePost(!showCreatePost)}
-          style={styles.createPostToggle}
-        />
-
-        {/* Formulário de criação de post */}
-        {showCreatePost && (
-          <View style={styles.createPostForm}>
-            <Input
-              label="Título"
-              placeholder="Título do seu post"
-              value={newPostTitle}
-              onChangeText={setNewPostTitle}
+          
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={theme.colors.text.secondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar posts..."
+              placeholderTextColor={theme.colors.text.tertiary}
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+              onSubmitEditing={fetchPosts}
             />
+          </View>
+          
+          <View style={styles.headerActions}>
+            <TouchableOpacity 
+              onPress={() => setShowCreateModal(true)} 
+              style={styles.headerButton}
+            >
+              <LinearGradient
+                colors={theme.colors.gradients.primary}
+                style={styles.headerButtonGradient}
+              >
+                <Ionicons name="add" size={24} color={theme.colors.text.primary} />
+              </LinearGradient>
+            </TouchableOpacity>
             
-            <Input
-              label="Conteúdo"
-              placeholder="O que você quer compartilhar?"
-              value={newPostContent}
-              onChangeText={setNewPostContent}
-              multiline
-              numberOfLines={4}
-            />
-            
-            <View style={styles.imageSection}>
+            <TouchableOpacity onPress={() => {
+              console.log('HomeScreen: Botão logout clicado');
+              handleLogout();
+            }} style={styles.headerButton}>
+              <LinearGradient
+                colors={theme.colors.gradients.glass}
+                style={styles.headerButtonGradient}
+              >
+                <Ionicons name="log-out-outline" size={24} color={theme.colors.text.primary} />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {posts.length > 0 ? (
+          <FlatList
+            data={posts}
+            renderItem={renderPost}
+            keyExtractor={(item) => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.postsList}
+            onRefresh={fetchPosts}
+            refreshing={refreshing}
+          />
+        ) : (
+          <View style={styles.emptyContainer}>
+            <LinearGradient
+              colors={theme.colors.gradients.glass}
+              style={styles.emptyGradient}
+            >
+              <Ionicons name="document-text-outline" size={64} color={theme.colors.text.secondary} />
+              <Text style={styles.emptyTitle}>Nenhum post encontrado</Text>
+              <Text style={styles.emptyText}>
+                {searchTerm ? 'Tente ajustar sua pesquisa ou seja o primeiro a postar!' : 'Seja o primeiro a criar um post!'}
+              </Text>
               <Button
-                title="Adicionar Imagem"
-                variant="outline"
-                size="small"
-                onPress={pickPostImage}
-                style={styles.imageButton}
+                title="Criar Primeiro Post"
+                onPress={() => setShowCreateModal(true)}
+                style={styles.emptyButton}
               />
+            </LinearGradient>
+          </View>
+        )}
+      </LinearGradient>
+
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <LinearGradient
+            colors={theme.colors.gradients.dark}
+            style={styles.modalBackground}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Criar Novo Post</Text>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text.primary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalContent}>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Título do post"
+                placeholderTextColor={theme.colors.text.tertiary}
+                value={newPostTitle}
+                onChangeText={setNewPostTitle}
+              />
+              
+              <TextInput
+                style={[styles.modalInput, styles.modalTextArea]}
+                placeholder="Conteúdo do post..."
+                placeholderTextColor={theme.colors.text.tertiary}
+                value={newPostContent}
+                onChangeText={setNewPostContent}
+                multiline
+                numberOfLines={6}
+              />
+
               {newPostImageUri && (
                 <View style={styles.imagePreview}>
                   <Image source={{ uri: newPostImageUri }} style={styles.previewImage} />
@@ -429,85 +418,29 @@ const HomeScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
-            
-            <Button
-              title="Publicar Post"
-              loading={isSubmitting}
-              disabled={!newPostTitle.trim() || !newPostContent.trim()}
-              onPress={handleCreatePost}
-            />
-          </View>
-        )}
 
-        {/* Formulário de edição de post */}
-        {editingPost && (
-          <View style={styles.createPostForm}>
-            <Text style={styles.editTitle}>Editando Post</Text>
-            <Input
-              label="Título"
-              placeholder="Título do seu post"
-              value={editPostTitle}
-              onChangeText={setEditPostTitle}
-            />
-            
-            <Input
-              label="Conteúdo"
-              placeholder="O que você quer compartilhar?"
-              value={editPostContent}
-              onChangeText={setEditPostContent}
-              multiline
-              numberOfLines={4}
-            />
-            
-            <View style={styles.editButtons}>
-              <Button
-                title="Cancelar"
-                variant="outline"
-                onPress={handleCancelEdit}
-                style={styles.cancelButton}
-              />
-              <Button
-                title="Salvar"
-                onPress={handleSaveEdit}
-                style={styles.saveButton}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Lista de Posts */}
-        {loadingPosts ? (
-          <LoadingSpinner message="Carregando posts..." />
-        ) : (
-          <View style={styles.postsContainer}>
-            {posts.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="document-text-outline" size={64} color={theme.colors.text.secondary} />
-                <Text style={styles.emptyText}>Nenhum post encontrado</Text>
-                <Text style={styles.emptySubtext}>
-                  Tente ajustar sua pesquisa ou seja o primeiro a postar!
-                </Text>
-              </View>
-            ) : (
-              posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onPress={() => navigation.navigate('PostDetail', { postId: post.id })}
-                  onLike={handleToggleLike}
-                  onFavorite={handleToggleFavorite}
-                  onComment={() => navigation.navigate('PostDetail', { postId: post.id })}
-                  onEdit={post.user_id === currentUserId ? handleEditPost : null}
-                  onDelete={post.user_id === currentUserId ? handleDeletePost : null}
-                  isLiked={userLikes[post.id] || false}
-                  isFavorited={userFavorites[post.id] || false}
+              <View style={styles.modalActions}>
+                <Button
+                  title="Adicionar Imagem"
+                  onPress={pickImage}
+                  variant="outline"
+                  style={styles.modalButton}
                 />
-              ))
-            )}
-          </View>
-        )}
-      </ScrollView>
+                
+                <Button
+                  title="Criar Post"
+                  onPress={createPost}
+                  loading={creatingPost}
+                  disabled={creatingPost}
+                  style={styles.modalButton}
+                />
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+      </Modal>
+
+
     </View>
   );
 };
@@ -515,158 +448,186 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+  },
+  
+  background: {
+    flex: 1,
   },
   
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    backgroundColor: theme.colors.surface,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-    ...theme.shadows.small,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   
-  headerLeft: {
-    flex: 1,
-  },
-  
-  title: {
-    ...theme.typography.h2,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.xs,
-  },
-  
-  subtitle: {
-    ...theme.typography.caption,
-    color: theme.colors.text.secondary,
-  },
-  
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  
-  profileButton: {
-    marginRight: theme.spacing.md,
-  },
-  
-  logoutButton: {
+  headerButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
     marginLeft: theme.spacing.sm,
   },
   
-  content: {
-    flex: 1,
+  headerButtonGradient: {
     padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+  },
+  
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   
   searchContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.md,
+    marginRight: theme.spacing.md,
   },
   
   searchInput: {
     flex: 1,
-    marginRight: theme.spacing.sm,
-  },
-  
-  searchButton: {
-    minWidth: 80,
-  },
-  
-  createPostToggle: {
-    marginBottom: theme.spacing.lg,
-  },
-  
-  createPostForm: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-    ...theme.shadows.medium,
-  },
-  
-  imageSection: {
-    marginBottom: theme.spacing.lg,
-  },
-  
-  imageButton: {
-    marginBottom: theme.spacing.sm,
-  },
-  
-  imagePreview: {
-    position: 'relative',
-    alignItems: 'center',
-  },
-  
-  previewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: theme.borderRadius.md,
-    marginTop: theme.spacing.sm,
-  },
-  
-  removeImageButton: {
-    position: 'absolute',
-    top: theme.spacing.sm,
-    right: theme.spacing.sm,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.round,
-  },
-  
-  editTitle: {
-    ...theme.typography.h3,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     color: theme.colors.text.primary,
+    ...theme.typography.body,
+  },
+  
+  createButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  
+  createButtonGradient: {
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+  },
+  
+  postsList: {
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  
+  postContainer: {
+    width: '100%',
     marginBottom: theme.spacing.lg,
-    textAlign: 'center',
-  },
-  
-  editButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: theme.spacing.lg,
-  },
-  
-  cancelButton: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
-  },
-  
-  saveButton: {
-    flex: 1,
-    marginLeft: theme.spacing.sm,
-  },
-  
-
-  
-  postsContainer: {
-    flex: 1,
   },
   
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: theme.spacing.xxl,
+    paddingHorizontal: theme.spacing.lg,
   },
   
-  emptyText: {
-    ...theme.typography.h3,
+  emptyGradient: {
+    alignItems: 'center',
+    padding: theme.spacing.xxl,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  
+  emptyTitle: {
+    ...theme.typography.h4,
     color: theme.colors.text.primary,
     marginTop: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
   },
   
-  emptySubtext: {
+  emptyText: {
     ...theme.typography.body,
     color: theme.colors.text.secondary,
     textAlign: 'center',
-    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
   },
+  
+  emptyButton: {
+    minWidth: 200,
+  },
+  
+
+  
+  modalContainer: {
+    flex: 1,
+  },
+  
+  modalBackground: {
+    flex: 1,
+  },
+  
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  
+  modalTitle: {
+    ...theme.typography.h4,
+    color: theme.colors.text.primary,
+  },
+  
+  modalContent: {
+    flex: 1,
+    padding: theme.spacing.lg,
+  },
+  
+  modalInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    color: theme.colors.text.primary,
+    ...theme.typography.body,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  
+  modalTextArea: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  
+  imagePreview: {
+    position: 'relative',
+    marginBottom: theme.spacing.lg,
+  },
+  
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: theme.borderRadius.lg,
+  },
+  
+  removeImageButton: {
+    position: 'absolute',
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: theme.borderRadius.round,
+  },
+  
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.lg,
+  },
+  
+  modalButton: {
+    flex: 1,
+    marginHorizontal: theme.spacing.sm,
+  },
+  
+
 });
 
 export default HomeScreen;

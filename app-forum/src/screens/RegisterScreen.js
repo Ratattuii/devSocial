@@ -1,7 +1,7 @@
 
 
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AuthContext from '../context/AuthContext';
@@ -65,7 +65,7 @@ const RegisterScreen = ({ navigation }) => {
       const { token, user } = response.data;
       await AsyncStorage.setItem('userToken', token);
       await AsyncStorage.setItem('userData', JSON.stringify(user));
-      signIn(token);
+      signIn(token, user);
       
       Alert.alert('Sucesso', 'Conta criada com sucesso!');
     } catch (error) {
@@ -80,12 +80,11 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      
       <LinearGradient
-        colors={theme.colors.gradients.secondary}
+        colors={theme.colors.gradients.dark}
         style={styles.background}
       >
         <ScrollView 
@@ -96,79 +95,103 @@ const RegisterScreen = ({ navigation }) => {
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <LinearGradient
-                colors={theme.colors.gradients.surface}
+                colors={theme.colors.gradients.secondary}
                 style={styles.logo}
               >
-                <Ionicons name="person-add" size={48} color={theme.colors.secondary} />
+                <Ionicons name="person-add" size={48} color={theme.colors.text.primary} />
               </LinearGradient>
             </View>
-            <Text style={styles.title}>Crie sua conta</Text>
+            <Text style={styles.title}>Criar conta</Text>
             <Text style={styles.subtitle}>
-              Junte-se à nossa comunidade e comece a compartilhar
+              Preencha os dados abaixo para começar
             </Text>
           </View>
 
           {/* Form */}
           <View style={styles.formContainer}>
-            <Input
-              label="Nome de Usuário"
-              placeholder="Digite seu nome de usuário"
-              value={username}
-              onChangeText={(text) => {
-                setUsername(text);
-                if (errors.username) {
-                  setErrors(prev => ({ ...prev, username: null }));
-                }
-              }}
-              error={errors.username}
-              autoCapitalize="none"
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Nome de usuário</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="person" size={20} color={theme.colors.text.secondary} />
+                <Input
+                  placeholder="Digite seu nome de usuário"
+                  value={username}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    if (errors.username) {
+                      setErrors(prev => ({ ...prev, username: null }));
+                    }
+                  }}
+                  error={errors.username}
+                  autoCapitalize="none"
+                  style={styles.input}
+                />
+              </View>
+            </View>
 
-            <Input
-              label="Email"
-              placeholder="Digite seu email"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (errors.email) {
-                  setErrors(prev => ({ ...prev, email: null }));
-                }
-              }}
-              error={errors.email}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="mail" size={20} color={theme.colors.text.secondary} />
+                <Input
+                  placeholder="Digite seu email"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errors.email) {
+                      setErrors(prev => ({ ...prev, email: null }));
+                    }
+                  }}
+                  error={errors.email}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  style={styles.input}
+                />
+              </View>
+            </View>
 
-            <Input
-              label="Senha"
-              placeholder="Digite sua senha"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errors.password) {
-                  setErrors(prev => ({ ...prev, password: null }));
-                }
-              }}
-              error={errors.password}
-              secureTextEntry
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Senha</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="lock-closed" size={20} color={theme.colors.text.secondary} />
+                <Input
+                  placeholder="Digite sua senha"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) {
+                      setErrors(prev => ({ ...prev, password: null }));
+                    }
+                  }}
+                  error={errors.password}
+                  secureTextEntry
+                  style={styles.input}
+                />
+              </View>
+            </View>
 
-            <Input
-              label="Confirmar Senha"
-              placeholder="Confirme sua senha"
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                if (errors.confirmPassword) {
-                  setErrors(prev => ({ ...prev, confirmPassword: null }));
-                }
-              }}
-              error={errors.confirmPassword}
-              secureTextEntry
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirmar senha</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="shield-checkmark" size={20} color={theme.colors.text.secondary} />
+                <Input
+                  placeholder="Confirme sua senha"
+                  value={confirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    if (errors.confirmPassword) {
+                      setErrors(prev => ({ ...prev, confirmPassword: null }));
+                    }
+                  }}
+                  error={errors.confirmPassword}
+                  secureTextEntry
+                  style={styles.input}
+                />
+              </View>
+            </View>
 
             <Button
-              title="Criar Conta"
+              title="Criar conta"
               onPress={handleRegister}
               loading={loading}
               disabled={loading}
@@ -190,7 +213,7 @@ const RegisterScreen = ({ navigation }) => {
           </View>
         </ScrollView>
       </LinearGradient>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -229,24 +252,55 @@ const styles = StyleSheet.create({
   
   title: {
     ...theme.typography.h1,
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.primary,
     textAlign: 'center',
     marginBottom: theme.spacing.sm,
+    fontWeight: '700',
   },
   
   subtitle: {
     ...theme.typography.body,
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
     opacity: 0.9,
   },
   
   formContainer: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.xl,
     marginBottom: theme.spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     ...theme.shadows.large,
+  },
+  
+  inputGroup: {
+    marginBottom: theme.spacing.lg,
+  },
+  
+  inputLabel: {
+    ...theme.typography.body,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.sm,
+    fontWeight: '600',
+  },
+  
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  
+  input: {
+    flex: 1,
+    marginLeft: theme.spacing.md,
+    color: theme.colors.text.primary,
+    ...theme.typography.body,
   },
   
   registerButton: {
@@ -259,12 +313,12 @@ const styles = StyleSheet.create({
   
   footerText: {
     ...theme.typography.body,
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.secondary,
     textAlign: 'center',
   },
   
   linkText: {
-    color: theme.colors.accentLight,
+    color: theme.colors.secondary,
     fontWeight: '600',
   },
 });

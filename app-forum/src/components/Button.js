@@ -26,6 +26,8 @@ const Button = ({
       baseStyle.push(styles.outline);
     } else if (variant === 'danger') {
       baseStyle.push(styles.danger);
+    } else if (variant === 'glass') {
+      baseStyle.push(styles.glass);
     }
     
     if (disabled) {
@@ -40,6 +42,8 @@ const Button = ({
     
     if (variant === 'outline') {
       baseTextStyle.push(styles.outlineText);
+    } else if (variant === 'glass') {
+      baseTextStyle.push(styles.glassText);
     }
     
     if (disabled) {
@@ -54,7 +58,7 @@ const Button = ({
       return (
         <ActivityIndicator 
           size="small" 
-          color={variant === 'outline' ? theme.colors.primary : theme.colors.text.inverse} 
+          color={variant === 'outline' ? theme.colors.primary : theme.colors.text.primary} 
         />
       );
     }
@@ -66,6 +70,13 @@ const Button = ({
     );
   };
 
+  const getGradientColors = () => {
+    if (variant === 'primary') return theme.colors.gradients.primary;
+    if (variant === 'secondary') return theme.colors.gradients.secondary;
+    if (variant === 'danger') return theme.colors.gradients.accent;
+    return theme.colors.gradients.primary;
+  };
+
   return (
     <TouchableOpacity
       style={[getButtonStyle(), style]}
@@ -73,11 +84,11 @@ const Button = ({
       disabled={disabled || loading}
       activeOpacity={0.8}
     >
-      {variant === 'primary' && !disabled ? (
+      {(variant === 'primary' || variant === 'secondary' || variant === 'danger') && !disabled ? (
         <LinearGradient
-          colors={theme.colors.gradients.primary}
+          colors={getGradientColors()}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={styles.gradient}
         >
           {renderContent()}
@@ -95,7 +106,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    ...theme.shadows.small,
+    overflow: 'hidden',
+    ...theme.shadows.medium,
   },
   
   gradient: {
@@ -103,6 +115,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
   },
   
   primary: {
@@ -123,38 +137,50 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.error,
   },
   
+  glass: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backdropFilter: 'blur(10px)',
+  },
+  
   small: {
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    minHeight: 36,
+    minHeight: 40,
   },
   
   medium: {
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
-    minHeight: 48,
+    minHeight: 52,
   },
   
   large: {
     paddingVertical: theme.spacing.lg,
     paddingHorizontal: theme.spacing.xl,
-    minHeight: 56,
+    minHeight: 60,
   },
   
   disabled: {
     backgroundColor: theme.colors.text.tertiary,
     borderColor: theme.colors.text.tertiary,
-    opacity: 0.6,
+    opacity: 0.5,
   },
   
   text: {
     ...theme.typography.button,
-    color: theme.colors.text.inverse,
+    color: theme.colors.text.primary,
     textAlign: 'center',
+    fontWeight: '600',
   },
   
   outlineText: {
     color: theme.colors.primary,
+  },
+  
+  glassText: {
+    color: theme.colors.text.primary,
   },
   
   disabledText: {

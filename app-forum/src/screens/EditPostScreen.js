@@ -1,30 +1,31 @@
-
-
 import React, { useState, useContext } from 'react';
 import {
   View, Text, StyleSheet, Alert, ScrollView, TouchableOpacity, StatusBar
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import AuthContext from '../context/AuthContext';
 import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme/theme';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { LinearGradient } from 'expo-linear-gradient';
 
-const EditProfileScreen = ({ route, navigation }) => {
-  const { user: initialUser } = route.params;
+const EditPostScreen = ({ route, navigation }) => {
+  const { post } = route.params;
   const { signOut } = useContext(AuthContext);
 
-  const [username, setUsername] = useState(initialUser.username);
-  const [email, setEmail] = useState(initialUser.email);
+  const [title, setTitle] = useState(post.title);
+  const [content, setContent] = useState(post.content);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleUpdateProfile = async () => {
-    console.log('EditProfileScreen: Iniciando atualização do perfil...');
-    
+  const handleUpdatePost = async () => {
+    if (!title.trim() || !content.trim()) {
+      Alert.alert('Erro', 'Título e conteúdo são obrigatórios.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const userToken = await AsyncStorage.getItem('userToken');
@@ -34,20 +35,56 @@ const EditProfileScreen = ({ route, navigation }) => {
         return;
       }
 
-      const updateData = {
-        username,
-        email,
-      };
-
-      await api.put('/users/me', updateData, {
+      await api.put(`/posts/${post.id}`, {
+        title: title.trim(),
+        content: content.trim(),
+      }, {
         headers: { Authorization: `Bearer ${userToken}` }
       });
 
-      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+      Alert.alert('Sucesso', 'Post atualizado com sucesso!');
       navigation.goBack();
     } catch (error) {
-      console.error('Erro ao atualizar perfil:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível atualizar o perfil.');
+      console.error('Erro ao atualizar post:', error.response?.data || error.message);
+      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível atualizar o post.');
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        signOut();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePost = () => {
+    Alert.alert(
+      'Excluir Post',
+      'Tem certeza que deseja excluir este post? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Excluir', style: 'destructive', onPress: confirmDeletePost },
+      ]
+    );
+  };
+
+  const confirmDeletePost = async () => {
+    setIsSubmitting(true);
+    try {
+      const userToken = await AsyncStorage.getItem('userToken');
+      if (!userToken) {
+        Alert.alert('Erro de Autenticação', 'Você não está logado.');
+        signOut();
+        return;
+      }
+
+      await api.delete(`/posts/${post.id}`, {
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
+
+      Alert.alert('Sucesso', 'Post excluído com sucesso!');
+      navigation.goBack();
+    } catch (error) {
+      console.error('Erro ao excluir post:', error.response?.data || error.message);
+      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível excluir o post.');
       if (error.response?.status === 401 || error.response?.status === 403) {
         signOut();
       }
@@ -57,7 +94,7 @@ const EditProfileScreen = ({ route, navigation }) => {
   };
 
   if (isSubmitting) {
-    return <LoadingSpinner message="Atualizando perfil..." />;
+    return <LoadingSpinner message="Processando..." />;
   }
 
   return (
@@ -78,8 +115,17 @@ const EditProfileScreen = ({ route, navigation }) => {
               <Ionicons name="arrow-back" size={24} color={theme.colors.text.primary} />
             </LinearGradient>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Editar Perfil</Text>
-          <View style={styles.headerSpacer} />
+          
+          <Text style={styles.headerTitle}>Editar Post</Text>
+          
+          <TouchableOpacity onPress={handleDeletePost} style={styles.deleteButton}>
+            <LinearGradient
+              colors={theme.colors.gradients.accent}
+              style={styles.deleteButtonGradient}
+            >
+              <Ionicons name="trash-outline" size={20} color={theme.colors.text.primary} />
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         <ScrollView 
@@ -89,44 +135,42 @@ const EditProfileScreen = ({ route, navigation }) => {
           {/* Formulário */}
           <View style={styles.formSection}>
             <View style={styles.formCard}>
-              <Text style={styles.sectionTitle}>Informações Básicas</Text>
-              
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nome de usuário</Text>
+                <Text style={styles.inputLabel}>Título</Text>
                 <View style={styles.inputWrapper}>
-                  <Ionicons name="person" size={20} color={theme.colors.text.secondary} />
+                  <Ionicons name="create" size={20} color={theme.colors.text.secondary} />
                   <Input
-                    placeholder="Digite seu nome de usuário"
-                    value={username}
-                    onChangeText={setUsername}
+                    placeholder="Digite o título do post"
+                    value={title}
+                    onChangeText={setTitle}
                     style={styles.input}
+                    multiline
                   />
                 </View>
               </View>
               
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>E-mail</Text>
+                <Text style={styles.inputLabel}>Conteúdo</Text>
                 <View style={styles.inputWrapper}>
-                  <Ionicons name="mail" size={20} color={theme.colors.text.secondary} />
+                  <Ionicons name="document-text" size={20} color={theme.colors.text.secondary} />
                   <Input
-                    placeholder="Digite seu e-mail"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    style={styles.input}
+                    placeholder="Digite o conteúdo do post"
+                    value={content}
+                    onChangeText={setContent}
+                    style={[styles.input, styles.contentInput]}
+                    multiline
+                    numberOfLines={6}
                   />
                 </View>
               </View>
             </View>
           </View>
 
-
-
           {/* Botões */}
           <View style={styles.buttonsSection}>
             <Button
               title="Salvar Alterações"
-              onPress={handleUpdateProfile}
+              onPress={handleUpdatePost}
               style={styles.saveButton}
             />
             
@@ -183,8 +227,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  headerSpacer: {
+  deleteButton: {
+    borderRadius: theme.borderRadius.full,
+    overflow: 'hidden',
+  },
+  
+  deleteButtonGradient: {
     width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   
   scrollViewContent: {
@@ -204,13 +257,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
   },
   
-  sectionTitle: {
-    ...theme.typography.h3,
-    color: theme.colors.text.primary,
-    marginBottom: theme.spacing.lg,
-    fontWeight: '600',
-  },
-  
   inputGroup: {
     marginBottom: theme.spacing.lg,
   },
@@ -224,10 +270,11 @@ const styles = StyleSheet.create({
   
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
@@ -239,7 +286,10 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
   },
   
-
+  contentInput: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
   
   buttonsSection: {
     marginHorizontal: theme.spacing.md,
@@ -255,4 +305,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EditProfileScreen;
+export default EditPostScreen;
