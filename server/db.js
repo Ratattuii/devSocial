@@ -7,10 +7,8 @@ const dbConfig = {
   database: 'devsocial'
 };
 
-// Cria um pool de conexões
 const pool = mysql.createPool(dbConfig);
 
-// Testa a conexão ao iniciar o pool
 pool.getConnection()
   .then(connection => {
     console.log('Conectado ao MySQL com sucesso!');

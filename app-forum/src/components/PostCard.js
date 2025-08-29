@@ -1,5 +1,3 @@
-// src/components/PostCard.js
-
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -334,7 +332,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     backgroundColor: theme.colors.surface,
     ...theme.shadows.small,
-    minHeight: 44, // Garante área de toque mínima
+    minHeight: 44,
   },
   
   actionActive: {

@@ -1,12 +1,10 @@
 const jwt = require('jsonwebtoken');
 
-// Chave secreta para assinar e verificar tokens JWT (a mesma usada em authController.js)
-const jwtSecret = process.env.JWT_SECRET || 'senhajwt'; // Use a mesma do controller!
+const jwtSecret = process.env.JWT_SECRET || 'senhajwt';
 
 exports.verifyToken = (req, res, next) => {
-  // Obter o token do cabeçalho de autorização
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Formato: Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
   console.log('AuthMiddleware: Verificando token...');
   console.log('AuthMiddleware: AuthHeader:', authHeader);
@@ -18,11 +16,10 @@ exports.verifyToken = (req, res, next) => {
   }
 
   try {
-    // Verificar o token
     const decoded = jwt.verify(token, jwtSecret);
     console.log('AuthMiddleware: Token válido, usuário:', decoded);
-    req.user = decoded; // Adiciona as informações do usuário decodificadas ao objeto de requisição
-    next(); // Continua para a próxima função middleware/rota
+    req.user = decoded;
+    next();
   } catch (error) {
     console.log('AuthMiddleware: Erro ao verificar token:', error.message);
     if (error.name === 'TokenExpiredError') {

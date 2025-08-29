@@ -1,30 +1,25 @@
-// src/theme/theme.js
-
 import { Dimensions } from 'react-native';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export const theme = {
   colors: {
-    // Paleta de cores moderna
-    primary: '#6366F1', // Indigo moderno
+    primary: '#6366F1',
     primaryLight: '#818CF8',
     primaryDark: '#4F46E5',
     
-    secondary: '#10B981', // Verde esmeralda
+    secondary: '#10B981',
     secondaryLight: '#34D399',
     secondaryDark: '#059669',
     
-    accent: '#F59E0B', // Âmbar
+    accent: '#F59E0B',
     accentLight: '#FBBF24',
     accentDark: '#D97706',
     
-    // Cores de fundo
-    background: '#F8FAFC', // Cinza muito claro
+    background: '#F8FAFC',
     surface: '#FFFFFF',
     surfaceVariant: '#F1F5F9',
     
-    // Cores de texto
     text: {
       primary: '#1E293B',
       secondary: '#64748B',
@@ -32,17 +27,14 @@ export const theme = {
       inverse: '#FFFFFF',
     },
     
-    // Cores de estado
     success: '#10B981',
     warning: '#F59E0B',
     error: '#EF4444',
     info: '#3B82F6',
     
-    // Cores de borda
     border: '#E2E8F0',
     borderLight: '#F1F5F9',
     
-    // Gradientes
     gradients: {
       primary: ['#6366F1', '#8B5CF6'],
       secondary: ['#10B981', '#059669'],
@@ -166,7 +158,6 @@ export const theme = {
     },
   },
   
-  // Animações
   animations: {
     duration: {
       fast: 200,
@@ -181,14 +172,12 @@ export const theme = {
     },
   },
   
-  // Breakpoints para responsividade
   breakpoints: {
     mobile: 480,
     tablet: 768,
     desktop: 1024,
   },
   
-  // Dimensões da tela
   dimensions: {
     screenWidth,
     screenHeight,

@@ -1,4 +1,4 @@
-// src/components/Button.js
+
 
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
@@ -105,7 +105,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   
-  // Variantes
   primary: {
     backgroundColor: theme.colors.primary,
   },
@@ -124,7 +123,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.error,
   },
   
-  // Tamanhos
   small: {
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
@@ -143,14 +141,12 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   
-  // Estados
   disabled: {
     backgroundColor: theme.colors.text.tertiary,
     borderColor: theme.colors.text.tertiary,
     opacity: 0.6,
   },
   
-  // Texto
   text: {
     ...theme.typography.button,
     color: theme.colors.text.inverse,

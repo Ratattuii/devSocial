@@ -1,4 +1,4 @@
-// src/screens/HomeScreen.js
+
 
 import React, { useState, useEffect, useContext } from 'react';
 import {
@@ -53,7 +53,6 @@ const HomeScreen = ({ navigation }) => {
     loadUserData();
     fetchPosts();
 
-    // Pedir permissão para acessar a galeria de imagens
     (async () => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -67,7 +66,6 @@ const HomeScreen = ({ navigation }) => {
     try {
       const response = await api.get(`/posts?q=${searchTerm}`);
 
-      // Buscar likes e favoritos do usuário
       let initialUserLikes = {};
       let initialUserFavorites = {};
       
@@ -110,7 +108,7 @@ const HomeScreen = ({ navigation }) => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 3], // Ajuste conforme preferir
+      aspect: [4, 3],
       quality: 0.8,
     });
 
@@ -136,7 +134,6 @@ const HomeScreen = ({ navigation }) => {
 
       let imageUrlToSave = null;
       if (newPostImageUri) {
-        // Faça o upload da imagem do post primeiro
         const formData = new FormData();
         formData.append('postImage', {
           uri: newPostImageUri,
@@ -151,7 +148,7 @@ const HomeScreen = ({ navigation }) => {
               'Authorization': `Bearer ${userToken}`,
             },
           });
-          imageUrlToSave = uploadResponse.data.imageUrl; // URL retornada pelo backend
+          imageUrlToSave = uploadResponse.data.imageUrl;
         } catch (uploadError) {
           console.error('Erro ao fazer upload da imagem do post:', uploadError.response?.data || uploadError.message);
           Alert.alert('Erro de Upload', 'Não foi possível fazer upload da imagem do post.');
@@ -162,15 +159,15 @@ const HomeScreen = ({ navigation }) => {
 
       await api.post(
         '/posts',
-        { title: newPostTitle, content: newPostContent, image_url: imageUrlToSave }, // Envia a URL da imagem
+        { title: newPostTitle, content: newPostContent, image_url: imageUrlToSave },
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
 
       Alert.alert('Sucesso', 'Post criado com sucesso!');
       setNewPostTitle('');
       setNewPostContent('');
-      setNewPostImageUri(null); // Limpa a imagem selecionada
-      fetchPosts(); // Recarrega os posts
+      setNewPostImageUri(null);
+      fetchPosts();
     } catch (error) {
       console.error('Erro ao criar post:', error.response?.data || error.message);
       Alert.alert('Erro ao Criar Post', error.response?.data?.message || 'Ocorreu um erro ao criar o post.');

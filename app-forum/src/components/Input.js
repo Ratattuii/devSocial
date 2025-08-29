@@ -1,4 +1,4 @@
-// src/components/Input.js
+
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Animated } from 'react-native';

@@ -1,4 +1,4 @@
-// src/screens/RegisterScreen.js
+
 
 import React, { useState, useContext } from 'react';
 import { View, Text, StyleSheet, Alert, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';

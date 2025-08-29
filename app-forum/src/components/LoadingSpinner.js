@@ -1,4 +1,4 @@
-// src/components/LoadingSpinner.js
+
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
