@@ -40,32 +40,32 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     
-    // Simular delay de login
-    setTimeout(async () => {
-      try {
-        // Simular login bem-sucedido
-        const mockToken = 'mock_token_' + Date.now();
-        const mockUser = {
-          id: 1,
-          username: identifier,
-          email: identifier.includes('@') ? identifier : identifier + '@email.com'
-        };
+    try {
+      const response = await api.post('/auth/login', {
+        identifier,
+        password
+      });
 
-        await AsyncStorage.setItem('userToken', mockToken);
-        await AsyncStorage.setItem('userData', JSON.stringify(mockUser));
-        signIn(mockToken);
-        
-        Alert.alert('Sucesso', 'Login realizado com sucesso!');
-      } catch (error) {
-        console.error('Erro no login:', error);
-        Alert.alert(
-          'Erro no Login',
-          'Ocorreu um erro ao fazer login. Tente novamente.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    }, 1000);
+      const { token, user } = response.data;
+      
+      console.log('LoginScreen: Token recebido:', token ? 'SIM' : 'NÃO');
+      console.log('LoginScreen: Token:', token);
+      console.log('LoginScreen: User:', user);
+      
+      await AsyncStorage.setItem('userToken', token);
+      await AsyncStorage.setItem('userData', JSON.stringify(user));
+      signIn(token);
+      
+      Alert.alert('Sucesso', 'Login realizado com sucesso!');
+    } catch (error) {
+      console.error('Erro no login:', error);
+      Alert.alert(
+        'Erro no Login',
+        error.response?.data?.message || 'Ocorreu um erro ao fazer login. Tente novamente.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

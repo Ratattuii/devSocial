@@ -46,8 +46,15 @@ export const AuthProvider = ({ children }) => {
     const loadToken = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
-        if (token) {
+        console.log('AuthContext: Token carregado:', token ? 'SIM' : 'NÃO');
+        if (token && !token.startsWith('mock_token')) {
+          console.log('AuthContext: Token válido encontrado');
           setUserToken(token);
+        } else {
+          console.log('AuthContext: Token mock ou inválido, limpando...');
+          await AsyncStorage.removeItem('userToken');
+          await AsyncStorage.removeItem('userData');
+          setUserToken(null);
         }
       } catch (e) {
         console.error('Erro ao carregar token do AsyncStorage', e);

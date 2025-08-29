@@ -34,7 +34,7 @@ exports.register = async (req, res) => {
     );
 
     // 4. Gerar um token JWT para o usuário recém-registrado
-    const token = jwt.sign({ id: result.insertId, username: username }, jwtSecret, { expiresIn: '1h' });
+    const token = jwt.sign({ id: result.insertId, username: username }, jwtSecret, { expiresIn: '7d' });
 
     // 5. Buscar o usuário criado para retornar os dados
     const [newUser] = await pool.query('SELECT id, username, email FROM users WHERE id = ?', [result.insertId]);
@@ -83,7 +83,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, username: user.username },
       jwtSecret,
-      { expiresIn: '1h' } // Token expira em 1 hora
+      { expiresIn: '7d' } // Token expira em 7 dias
     );
 
     res.status(200).json({

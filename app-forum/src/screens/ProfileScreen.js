@@ -32,33 +32,38 @@ const ProfileScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const userToken = await AsyncStorage.getItem('userToken');
+      console.log('ProfileScreen: Token encontrado:', userToken ? 'SIM' : 'NÃO');
+      
       if (!userToken) {
         Alert.alert('Erro', 'Token de autenticação não encontrado.');
         signOut();
         return;
       }
 
+      console.log('ProfileScreen: Fazendo requisição para /users/me...');
       const userResponse = await api.get('/users/me', {
         headers: { Authorization: `Bearer ${userToken}` }
       });
+      console.log('ProfileScreen: Resposta /users/me:', userResponse.data);
       setUser(userResponse.data);
 
+      console.log('ProfileScreen: Fazendo requisição para /users/me/posts...');
       const myPostsResponse = await api.get('/users/me/posts', {
         headers: { Authorization: `Bearer ${userToken}` }
       });
+      console.log('ProfileScreen: Resposta /users/me/posts:', myPostsResponse.data);
       setMyPosts(myPostsResponse.data);
 
+      console.log('ProfileScreen: Fazendo requisição para /users/me/favorites...');
       const favoritePostsResponse = await api.get('/users/me/favorites', {
         headers: { Authorization: `Bearer ${userToken}` }
       });
+      console.log('ProfileScreen: Resposta /users/me/favorites:', favoritePostsResponse.data);
       setFavoritePosts(favoritePostsResponse.data);
 
     } catch (error) {
-      console.error('Erro ao buscar dados do perfil:', error.response?.data || error.message);
-      Alert.alert('Erro', error.response?.data?.message || 'Não foi possível carregar o perfil.');
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        signOut();
-      }
+      console.error('ProfileScreen: Erro ao carregar perfil:', error.message);
+      Alert.alert('Erro', 'Não foi possível carregar o perfil.');
     } finally {
       setLoading(false);
     }

@@ -30,6 +30,9 @@ const HomeScreen = ({ navigation }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [newPostImageUri, setNewPostImageUri] = useState(null);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [editPostTitle, setEditPostTitle] = useState('');
+  const [editPostContent, setEditPostContent] = useState('');
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -256,32 +259,67 @@ const HomeScreen = ({ navigation }) => {
 
   const handleLogout = () => {
     console.log('HomeScreen: Botão Sair pressionado!');
-    Alert.alert('Sair', 'Deseja realmente sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', onPress: async () => {
-        console.log('HomeScreen: Confirmando logout...');
-        try {
-          await signOut();
-          console.log('HomeScreen: Logout realizado com sucesso!');
-        } catch (error) {
-          console.error('HomeScreen: Erro no logout:', error);
-        }
-      }}
-    ]);
+    console.log('HomeScreen: signOut é uma função?', typeof signOut);
+    signOut();
+    console.log('HomeScreen: signOut() chamado!');
   };
 
   const handleEditPost = (post) => {
-    // Implementar edição de post
-    Alert.alert('Funcionalidade', 'Edição de posts será implementada em breve!');
+    setEditingPost(post);
+    setEditPostTitle(post.title);
+    setEditPostContent(post.content);
   };
 
-  const handleDeletePost = async (postId) => {
+  const handleSaveEdit = async () => {
+    if (!editPostTitle.trim() || !editPostContent.trim()) {
+      Alert.alert('Erro', 'Título e conteúdo não podem ser vazios.');
+      return;
+    }
+
     try {
       const userToken = await AsyncStorage.getItem('userToken');
-      await api.delete(`/posts/${postId}`, {
+      await api.put(`/posts/${editingPost.id}`, {
+        title: editPostTitle,
+        content: editPostContent
+      }, {
         headers: { Authorization: `Bearer ${userToken}` }
       });
       
+      setPosts(prevPosts => prevPosts.map(post => 
+        post.id === editingPost.id 
+          ? { ...post, title: editPostTitle, content: editPostContent }
+          : post
+      ));
+      
+      setEditingPost(null);
+      setEditPostTitle('');
+      setEditPostContent('');
+      Alert.alert('Sucesso', 'Post editado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao editar post:', error.response?.data || error.message);
+      Alert.alert('Erro', 'Não foi possível editar o post.');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPost(null);
+    setEditPostTitle('');
+    setEditPostContent('');
+  };
+
+  const handleDeletePost = async (postId) => {
+    console.log('HomeScreen: Tentando excluir post ID:', postId);
+    
+    try {
+      console.log('HomeScreen: Confirmando exclusão do post ID:', postId);
+      const userToken = await AsyncStorage.getItem('userToken');
+      console.log('HomeScreen: Token encontrado:', userToken ? 'SIM' : 'NÃO');
+      
+      const response = await api.delete(`/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${userToken}` }
+      });
+      
+      console.log('HomeScreen: Resposta da exclusão:', response.data);
       setPosts(prevPosts => prevPosts.filter(post => post.id !== postId));
       Alert.alert('Sucesso', 'Post excluído com sucesso!');
     } catch (error) {
@@ -402,6 +440,42 @@ const HomeScreen = ({ navigation }) => {
               disabled={!newPostTitle.trim() || !newPostContent.trim()}
               onPress={handleCreatePost}
             />
+          </View>
+        )}
+
+        {/* Formulário de edição de post */}
+        {editingPost && (
+          <View style={styles.createPostForm}>
+            <Text style={styles.editTitle}>Editando Post</Text>
+            <Input
+              label="Título"
+              placeholder="Título do seu post"
+              value={editPostTitle}
+              onChangeText={setEditPostTitle}
+            />
+            
+            <Input
+              label="Conteúdo"
+              placeholder="O que você quer compartilhar?"
+              value={editPostContent}
+              onChangeText={setEditPostContent}
+              multiline
+              numberOfLines={4}
+            />
+            
+            <View style={styles.editButtons}>
+              <Button
+                title="Cancelar"
+                variant="outline"
+                onPress={handleCancelEdit}
+                style={styles.cancelButton}
+              />
+              <Button
+                title="Salvar"
+                onPress={handleSaveEdit}
+                style={styles.saveButton}
+              />
+            </View>
           </View>
         )}
 
@@ -545,6 +619,29 @@ const styles = StyleSheet.create({
     right: theme.spacing.sm,
     backgroundColor: theme.colors.surface,
     borderRadius: theme.borderRadius.round,
+  },
+  
+  editTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.lg,
+    textAlign: 'center',
+  },
+  
+  editButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.lg,
+  },
+  
+  cancelButton: {
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  
+  saveButton: {
+    flex: 1,
+    marginLeft: theme.spacing.sm,
   },
   
 

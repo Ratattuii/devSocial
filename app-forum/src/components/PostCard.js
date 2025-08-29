@@ -71,14 +71,7 @@ const PostCard = ({
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Confirmar exclusão',
-      'Tem certeza que deseja excluir este post?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Excluir', style: 'destructive', onPress: () => onDelete(post.id) }
-      ]
-    );
+    onDelete && onDelete(post.id);
   };
 
   const formatDate = (dateString) => {
